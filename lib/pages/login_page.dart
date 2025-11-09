@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pentas/pages/signup_page.dart';
 // import 'home_page.dart'; // Mengimpor halaman home
 
 class LoginPage extends StatefulWidget {
@@ -73,34 +74,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12.0),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      // TODO: Logika Lupa Password
-                      print('Tombol Lupa Password ditekan');
-                    },
-                    child: Text(
-                      'Lupa Password?',
-                      style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      // TODO: Navigasi ke Register Page (dikerjakan teman)
-                      print('Tombol Daftar ditekan');
-                    },
-                    child: Text(
-                      'Belum punya akun? Daftar',
-                      style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24.0),
+              const SizedBox(height: 16.0),
 
               ElevatedButton(
                 onPressed: () {
@@ -124,6 +98,54 @@ class _LoginPageState extends State<LoginPage> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
+
+              const SizedBox(height: 16.0),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Lupa Password
+                  GestureDetector(
+                    onTap: () {
+                      print('Tombol Lupa Password ditekan');
+                    },
+                    child: Text(
+                      'Lupa Password?',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 12,
+                        decoration: TextDecoration.underline,
+                        fontWeight: FontWeight
+                            .bold, // opsional supaya terlihat klikable
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 45), // spasi antar teks
+                  // Navigasi ke Signup
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SignupPage(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Belum punya akun? Daftar',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 12,
+                        decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.bold, // opsional
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24.0),
             ],
           ),
         ),

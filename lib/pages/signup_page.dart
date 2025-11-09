@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
+import 'login_page.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
 
   @override
-  State<SignupPage> createState() => _SignUpPageState();
+  State<SignupPage> createState() => _SignupPageState();
 }
 
-class _SignUpPageState extends State<SignupPage> {
-  // Controller untuk input field
+class _SignupPageState extends State<SignupPage> {
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController nimController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
@@ -19,104 +19,103 @@ class _SignUpPageState extends State<SignupPage> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
+  final Color fieldBackgroundColor = const Color(0xFFFFF0ED);
+  final Color buttonColor = const Color(0xFFF9A887);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 32.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 20),
-              const Text(
+              Text(
                 "Sign Up",
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
               ),
+              const SizedBox(height: 48.0),
 
-              const SizedBox(height: 40),
-
-              // Username
               _buildInputField(usernameController, "Username"),
-              const SizedBox(height: 15),
-              // NIM
+              const SizedBox(height: 16.0),
               _buildInputField(nimController, "NIM"),
-              const SizedBox(height: 15),
-              // Email
+              const SizedBox(height: 16.0),
               _buildInputField(
                 emailController,
                 "Email",
                 keyboardType: TextInputType.emailAddress,
               ),
-              const SizedBox(height: 15),
-              // Password
+              const SizedBox(height: 16.0),
               _buildPasswordField(
                 passwordController,
                 "Password",
                 _obscurePassword,
                 () {
-                  setState(() {
-                    _obscurePassword = !_obscurePassword;
-                  });
+                  setState(() => _obscurePassword = !_obscurePassword);
                 },
               ),
-              const SizedBox(height: 15),
+              const SizedBox(height: 16.0),
               _buildPasswordField(
                 confirmPasswordController,
                 "Konfirmasi Password",
                 _obscureConfirmPassword,
                 () {
-                  setState(() {
-                    _obscureConfirmPassword = !_obscureConfirmPassword;
-                  });
+                  setState(
+                    () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                  );
                 },
               ),
-              const SizedBox(height: 10),
-              // Link Login
+              const SizedBox(height: 24.0),
+
+              ElevatedButton(
+                onPressed: _register,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: buttonColor,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                    side: const BorderSide(color: Colors.black, width: 1.5),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  "Daftar",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 16.0),
+
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  Text("Sudah punya akun? ", style: TextStyle(fontSize: 12)),
                   GestureDetector(
                     onTap: () {
-                      // Arahkan Ke halaman login (Belum ada)
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginPage(),
+                        ),
+                      );
                     },
-                    child: const Text(
-                      "Sudah Punya Akun? Login di sini",
+                    child: Text(
+                      "Login di sini",
                       style: TextStyle(
-                        color: Colors.blueAccent,
-                        fontSize: 12,
+                        color: Colors.grey[700],
                         decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 25),
-              // Tombol Daftar
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepOrangeAccent,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  onPressed: () {
-                    // validasi dan aksi dafar
-                    _register();
-                  },
-                  child: const Text(
-                    "Daftar",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
               ),
             ],
           ),
@@ -125,7 +124,6 @@ class _SignUpPageState extends State<SignupPage> {
     );
   }
 
-  // Widget untuk Textfield biasa
   Widget _buildInputField(
     TextEditingController controller,
     String hint, {
@@ -135,11 +133,12 @@ class _SignUpPageState extends State<SignupPage> {
       controller: controller,
       keyboardType: keyboardType ?? TextInputType.text,
       decoration: InputDecoration(
-        hintText: hint,
+        labelText: hint,
+        floatingLabelBehavior: FloatingLabelBehavior.auto,
         filled: true,
-        fillColor: const Color(0xFFFFE0CC),
+        fillColor: fieldBackgroundColor,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(10.0),
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -150,7 +149,6 @@ class _SignUpPageState extends State<SignupPage> {
     );
   }
 
-  // Widget untuk TextField password
   Widget _buildPasswordField(
     TextEditingController controller,
     String hint,
@@ -161,11 +159,12 @@ class _SignUpPageState extends State<SignupPage> {
       controller: controller,
       obscureText: obscureText,
       decoration: InputDecoration(
-        hintText: hint,
+        labelText: hint,
         filled: true,
-        fillColor: const Color(0xFFFFE0CC),
+        floatingLabelBehavior: FloatingLabelBehavior.auto,
+        fillColor: fieldBackgroundColor,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(10.0),
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -180,7 +179,6 @@ class _SignUpPageState extends State<SignupPage> {
     );
   }
 
-  // Contoh fungsi daftar
   void _register() {
     String username = usernameController.text.trim();
     String nim = nimController.text.trim();

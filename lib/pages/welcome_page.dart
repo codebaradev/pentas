@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'login_page.dart'; // Mengimpor halaman login
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -16,7 +17,8 @@ class WelcomePage extends StatelessWidget {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
-            // Logo ITH
+            
+            // Logo ITH (Pastikan pubspec.yaml sudah dikonfigurasi)
             Image.asset('assets/logo-ith.png', width: 120),
 
             const SizedBox(height: 20),
@@ -33,9 +35,10 @@ class WelcomePage extends StatelessWidget {
             // Tombol "Mulai"
             ElevatedButton(
               onPressed: () {
-                // Aksi Ketia ditekan
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Tombol mulai ditekan!')),
+                // Navigasi ke LoginPage saat ditekan
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
                 );
               },
               style: ElevatedButton.styleFrom(

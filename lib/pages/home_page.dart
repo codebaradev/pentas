@@ -194,6 +194,7 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
+    // Helper untuk membuat item grid (yang ada info 'Available')
     Widget _buildGridItem({
       required String date,
       required IconData icon,
@@ -206,7 +207,7 @@ class _HomePageState extends State<HomePage> {
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.black, width: 2)
+          border: Border.all(color: Colors.black, width: 2),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,9 +216,11 @@ class _HomePageState extends State<HomePage> {
               date,
               style: const TextStyle(fontSize: 10, color: Colors.black54),
             ),
-            const SizedBox(height: 8),
+            // --- DIUBAH (1) ---
+            const SizedBox(height: 4), // <-- Diubah dari 8 menjadi 4
             Icon(icon, size: 30, color: Colors.black),
-            const SizedBox(height: 8),
+            // --- DIUBAH (2) ---
+            const SizedBox(height: 4), // <-- Diubah dari 8 menjadi 4
             Text(
               title,
               style: const TextStyle(

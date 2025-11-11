@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/signup_page.dart';
-// import 'home_page.dart'; // Mengimpor halaman home
+import 'package:pentas/pages/home_page.dart';
+// Mengimpor halaman home
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -80,7 +81,12 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: () {
                   // Navigasi ke HomePage setelah login
                   // pushReplacement agar tidak bisa kembali ke halaman login
-                  print('Tombol Login ditekan');
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HomePage(),
+                    ),
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: buttonColor,

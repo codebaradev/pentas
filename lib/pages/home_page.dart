@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pentas/pages/lab_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -166,13 +167,26 @@ class _HomePageState extends State<HomePage> {
         mainAxisSpacing: 16,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
+        childAspectRatio: 0.95,
         children: [
-          _buildGridItem(
-            date: "1 November 2025",
-            icon: Icons.computer_outlined,
-            title: "Lab Komputer",
-            subtitle: "Available",
-            count: "3 Rooms",
+          // --- MODIFIKASI DIMULAI DI SINI ---
+          GestureDetector(
+            onTap: () {
+              // Navigasi ke Halaman Laboratorium
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LaboratoriumPage(),
+                ),
+              );
+            },
+            child: _buildGridItem(
+              date: "1 November 2025",
+              icon: Icons.computer_outlined,
+              title: "Laboratorium",
+              subtitle: "Available :",
+              count: "3 Rooms",
+            ),
           ),
           _buildGridItem(
             date: "1 November 2025",

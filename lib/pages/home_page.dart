@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:pentas/pages/lab_page.dart'; // Import Anda sudah benar
+import 'package:pentas/pages/lab_page.dart';
+import 'package:pentas/pages/tools_page.dart'; // Import Anda sudah benar
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -194,8 +195,13 @@ class _HomePageState extends State<HomePage> {
           subtitle: "Available :",
           count: "8 Tools",
           onTap: () {
-            // TODO: Tambahkan navigasi untuk Peralatan di sini
-            print("Tombol Peralatan ditekan!");
+            // Aksi: Pindah ke Halaman Peralatan
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const PeralatanPage(),
+              ),
+            );
           },
         ),
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/lab_page.dart';
-import 'package:pentas/pages/tools_page.dart'; // Import Anda sudah benar
+import 'package:pentas/pages/tools_page.dart';
+ import 'package:pentas/pages/profile_page.dart'; // Import Anda sudah benar
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,14 +18,26 @@ class _HomePageState extends State<HomePage> {
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
 
   void _onItemTapped(int index) {
-    if (index == 2) {
-      print("Tombol Add ditekan");
-      return;
+      if (index == 2) {
+        print("Tombol Add ditekan");
+        return;
+      }
+      
+      // --- TAMBAHKAN LOGIKA NAVIGASI INI ---
+      if (index == 4) { // Index 4 adalah Profile
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ProfilePage()),
+        );
+        return; // Jangan setState karena kita pindah halaman
+      }
+      // TODO: Tambahkan navigasi untuk History (index 1) dan Notification (index 3)
+      // --- AKHIR PENAMBAHAN ---
+      
+      setState(() {
+        _selectedIndex = index;
+      });
     }
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {

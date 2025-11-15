@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
+import 'package:pentas/pages/profile_page.dart';
 
 class LaboratoriumPage extends StatefulWidget {
   const LaboratoriumPage({super.key});
@@ -19,21 +20,27 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
 
   // Fungsi untuk menangani klik Bottom Nav Bar
   void _onItemTapped(int index) {
-    if (index == 0) {
-      // Jika menekan "Home", kembali ke halaman Home
-      Navigator.pop(context);
+      if (index == 0) {
+        Navigator.pop(context); // Kembali ke Home
+        return;
+      }
+      if (index == 2) {
+        print("Tombol Add ditekan!");
+        return;
+      }
+      
+      // --- TAMBAHKAN LOGIKA NAVIGASI INI ---
+      if (index == 4) { // Index 4 adalah Profile
+        // Ganti halaman Lab dengan halaman Profile
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ProfilePage()),
+        );
+        return;
+      }
+      // TODO: Tambahkan navigasi untuk History (index 1) dan Notification (index 3)
+      // --- AKHIR PENAMBAHAN ---
     }
-    if (index == 2) {
-      // Tombol Add di tengah
-      print("Tombol Add ditekan!");
-      return; // Jangan ubah index jika tombol 'Add' ditekan
-    }
-    setState(() {
-      _selectedIndex = index;
-      // TODO: Tambahkan navigasi untuk item lain jika perlu
-      // (History, Notification, Profile)
-    });
-  }
 
   @override
   Widget build(BuildContext context) {

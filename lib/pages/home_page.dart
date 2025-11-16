@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/lab_page.dart';
 import 'package:pentas/pages/tools_page.dart';
- import 'package:pentas/pages/profile_page.dart'; // Import Anda sudah benar
+import 'package:pentas/pages/profile_page.dart';
+import 'package:pentas/pages/rules_page.dart'; // Import Anda sudah benar
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -31,8 +32,7 @@ class _HomePageState extends State<HomePage> {
         );
         return; // Jangan setState karena kita pindah halaman
       }
-      // TODO: Tambahkan navigasi untuk History (index 1) dan Notification (index 3)
-      // --- AKHIR PENAMBAHAN ---
+
       
       setState(() {
         _selectedIndex = index;
@@ -223,8 +223,13 @@ class _HomePageState extends State<HomePage> {
           icon: Icons.description_outlined,
           title: "Peraturan\nPeminjaman",
           onTap: () {
-            // TODO: Tambahkan navigasi untuk Peraturan di sini
-            print("Tombol Peraturan ditekan!");
+            // Aksi: Pindah ke Halaman Peraturan
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const PeraturanPage(),
+              ),
+            );
           },
         ),
 

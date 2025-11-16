@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/login_page.dart';
+import 'package:pentas/pages/rules_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -23,7 +24,8 @@ class _ProfilePageState extends State<ProfilePage> {
       // Jika menekan "Home", kembali ke halaman Home
       // (Kita asumsikan Home adalah halaman di bawah Profile)
       Navigator.pop(context);
-    } else if (index == 2) {
+    } 
+    else if (index == 2) {
       // Tombol Add di tengah
       print("Tombol Add ditekan!");
       return; // Jangan ubah index jika tombol 'Add' ditekan

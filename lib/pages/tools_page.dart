@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
+import 'package:pentas/pages/rules_page.dart';
 
 class PeralatanPage extends StatefulWidget {
   const PeralatanPage({super.key});
@@ -23,6 +24,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
       print("Tombol add ditekan");
       return;
     }
+    
     setState(() {
       _selectedIndex = index;
     });

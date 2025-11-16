@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
+import 'package:pentas/pages/rules_page.dart';
+
 
 class LaboratoriumPage extends StatefulWidget {
   const LaboratoriumPage({super.key});

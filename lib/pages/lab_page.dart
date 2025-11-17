@@ -12,36 +12,38 @@ class LaboratoriumPage extends StatefulWidget {
 }
 
 class _LaboratoriumPageState extends State<LaboratoriumPage> {
-  // Melacak item yang dipilih di Bottom Nav Bar
   int _selectedIndex = 0;
-
-  // Mendefinisikan warna kustom dari gambar
   final Color cardColor = const Color(0xFFF9A887);
   final Color cardBackgroundColor = const Color(0xFFFFF0ED);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
 
-  // Fungsi untuk menangani klik Bottom Nav Bar
+  // Fungsi navigasi Bottom Bar yang sudah dilengkapi
   void _onItemTapped(int index) {
+      if (index == _selectedIndex) return; // Tidak ada aksi jika di halaman yg sama
+
       if (index == 0) {
         Navigator.pop(context); // Kembali ke Home
         return;
       }
-      if (index == 2) {
+
+      if (index == 2) { // Tombol Add
         print("Tombol Add ditekan!");
         return;
       }
       
-      // --- TAMBAHKAN LOGIKA NAVIGASI INI ---
+      if (index == 3) { // Index 3 adalah Notifikasi
+         print("Tombol Notifikasi ditekan!");
+         // TODO: Tambahkan navigasi ke Halaman Notifikasi
+         return;
+      }
+
       if (index == 4) { // Index 4 adalah Profile
-        // Ganti halaman Lab dengan halaman Profile
-        Navigator.pushReplacement(
+        Navigator.pushReplacement( // Ganti halaman
           context,
           MaterialPageRoute(builder: (context) => const ProfilePage()),
         );
         return;
       }
-      // TODO: Tambahkan navigasi untuk History (index 1) dan Notification (index 3)
-      // --- AKHIR PENAMBAHAN ---
     }
 
   @override
@@ -54,25 +56,19 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.transparent, // Transparan agar menyatu
+        backgroundColor: Colors.transparent, 
         elevation: 0,
-        // Tombol kembali (back arrow) akan otomatis muncul
-        // karena kita menggunakan Navigator.push()
       ),
       body: SingleChildScrollView(
-        // Padding utama untuk seluruh konten
         padding: const EdgeInsets.symmetric(horizontal: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 10),
-            // 1. Teks "Dasmae"
             _buildLabHeader(),
             const SizedBox(height: 24),
-            // 2. Banner "Laboratory !"
             _buildLabBanner(),
             const SizedBox(height: 24),
-            // 3. Judul "Ruangan yang tersedia"
             const Text(
               "Ruangan yang tersedia",
               style: TextStyle(
@@ -82,20 +78,17 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
               ),
             ),
             const SizedBox(height: 16),
-            // 4. Grid Ruangan
             _buildRoomGrid(),
-            const SizedBox(height: 20), // Spasi di bawah
+            const SizedBox(height: 20),
           ],
         ),
       ),
-      // 5. Bottom Navigation Bar Kustom (Sama seperti Home)
       bottomNavigationBar: _buildCustomBottomNav(),
     );
   }
 
   // --- WIDGET HELPER ---
 
-  // Header "Dasmae"
   Widget _buildLabHeader() {
     return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,7 +113,6 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     );
   }
 
-  // Banner "Laboratory" (Mirip dengan di Home)
   Widget _buildLabBanner() {
     return Container(
       decoration: BoxDecoration(
@@ -132,7 +124,6 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
         borderRadius: BorderRadius.circular(18),
         child: Row(
           children: [
-            // Bagian Kiri (Teks)
             Expanded(
               flex: 3,
               child: Padding(
@@ -161,28 +152,18 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
                 ),
               ),
             ),
-
-            // --- PERBAIKAN 1: MENGHILANGKAN ERROR GAMBAR ---
-            // Mengganti Image.network (yang error) dengan placeholder
             Expanded(
               flex: 2,
               child: Container(
                 height: 140,
-                color: Colors.grey[300], // Warna placeholder
+                color: Colors.grey[300], 
                 child: Icon(
-                  Icons.image_not_supported_outlined, // Ikon placeholder
+                  Icons.image_not_supported_outlined, 
                   color: Colors.grey[600],
                   size: 40,
                 ),
-                // --- Ganti dengan ini jika Anda punya gambar lokal ---
-                // child: Image.asset(
-                //   'assets/images/nama_gambar_anda.png',
-                //   height: 140,
-                //   fit: BoxFit.cover,
-                // ),
               ),
             ),
-            // --- AKHIR PERBAIKAN 1 ---
           ],
         ),
       ),
@@ -193,29 +174,29 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
   Widget _buildRoomGrid() {
     return GridView.count(
       crossAxisCount: 2,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
+      crossAxisSpacing: 8, // Mengembalikan ke 8 sesuai kode Anda
+      mainAxisSpacing: 8, // Mengembalikan ke 8 sesuai kode Anda
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      // Menggunakan rasio yang sama dengan home page untuk konsistensi
-      childAspectRatio: 0.95,
+      childAspectRatio: 0.95, 
       children: [
         // Item 1: Room 201
-        _buildRoomCard(roomNumber: "201", isAvailable: true),
+        _buildRoomCard(roomNumber: "201", isAvailable: true, kapasitas: "49"),
         // Item 2: Room 202
-        _buildRoomCard(roomNumber: "202", isAvailable: true),
+        _buildRoomCard(roomNumber: "202", isAvailable: true, kapasitas: "30"),
         // Item 3: Room 203
-        _buildRoomCard(roomNumber: "203", isAvailable: false),
+        _buildRoomCard(roomNumber: "203", isAvailable: false, kapasitas: "56"),
         // Item 4: Room 204
-        _buildRoomCard(roomNumber: "204", isAvailable: true),
+        _buildRoomCard(roomNumber: "204", isAvailable: true, kapasitas: "56"),
       ],
     );
   }
 
-  // Helper untuk membuat card ruangan
+  // --- PERBAIKAN UTAMA ADA DI FUNGSI INI ---
   Widget _buildRoomCard({
     required String roomNumber,
     required bool isAvailable,
+    required String kapasitas,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -227,48 +208,70 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "1 November 2025",
-            style: TextStyle(fontSize: 10, color: Colors.black54),
+          // 1. Judul "Room 201"
+          Text(
+            "Room $roomNumber",
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 12), 
+
+          // 2. Info Lab & Kapasitas
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Icon(Icons.computer_outlined, size: 30, color: Colors.black),
               const SizedBox(width: 8),
-
-              // --- PERBAIKAN 2: MENGHILANGKAN OVERFLOW ---
-              // Membungkus Column dengan Expanded agar teks otomatis
-              // turun (wrap) jika tidak muat.
-              Expanded(
+              Expanded( 
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Teks "Laboratorium"
                     const Text(
                       "Laboratorium",
                       style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Colors.black),
-                      overflow: TextOverflow.ellipsis, // Opsi tambahan
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      "Room : $roomNumber",
-                      style: const TextStyle(fontSize: 11, color: Colors.black54),
+                    const SizedBox(height: 2), 
+                    
+                    // --- INI PERBAIKANNYA ---
+                    // Baris "Kapasitas : 49 [ikon]"
+                    Row(
+                      children: [
+                        // 1. Bungkus Teks dengan Flexible
+                        Flexible(
+                          child: Text(
+                            "Kapasitas : $kapasitas",
+                            style: const TextStyle(fontSize: 11, color: Colors.black54),
+                            // 2. Tambahkan overflow ellipsis
+                            overflow: TextOverflow.ellipsis, 
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.people, size: 14, color: Colors.black54),
+                      ],
                     ),
+                    // --- AKHIR PERBAIKAN ---
                   ],
                 ),
               ),
-              // --- AKHIR PERBAIKAN 2 ---
             ],
           ),
+          
           const Spacer(), // Mendorong status ke bawah
+          
+          // 3. Status "Available"
           Text(
             isAvailable ? "Available" : "Not Available",
             style: TextStyle(
               fontSize: 18,
-              fontWeight: isAvailable ? FontWeight.normal : FontWeight.bold,
+              fontWeight: isAvailable ? FontWeight.normal : FontWeight.bold, 
               color: Colors.black,
             ),
           ),
@@ -276,10 +279,10 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
       ),
     );
   }
+  // --- AKHIR PERBAIKAN DESAIN GRID ---
 
-  // --- WIDGET YANG DISALIN DARI HOME PAGE ---
-  // (Pastikan ini identik dengan yang ada di home_page.dart)
 
+  // --- Bottom Nav Bar (Tidak berubah) ---
   Widget _buildCustomBottomNav() {
     return Container(
       height: 80,
@@ -322,7 +325,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
             ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.edit_note_outlined),
-              label: "History",
+              label: "Jadwal", 
               activeIcon: Icon(Icons.edit_note),
             ),
             BottomNavigationBarItem(

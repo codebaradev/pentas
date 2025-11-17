@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
+import '../service/auth_service.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -31,56 +32,58 @@ class _SignupPageState extends State<SignupPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
+              const Text(
                 "Sign Up",
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
                 ),
               ),
-              const SizedBox(height: 48.0),
+              const SizedBox(height: 48),
 
-              _buildInputField(usernameController, "Username"),
-              const SizedBox(height: 16.0),
+              _buildInputField(usernameController, "Nama Lengkap"),
+              const SizedBox(height: 16),
+
               _buildInputField(nimController, "NIM"),
-              const SizedBox(height: 16.0),
+              const SizedBox(height: 16),
+
               _buildInputField(
                 emailController,
                 "Email",
                 keyboardType: TextInputType.emailAddress,
               ),
-              const SizedBox(height: 16.0),
+              const SizedBox(height: 16),
+
               _buildPasswordField(
                 passwordController,
                 "Password",
                 _obscurePassword,
-                () {
-                  setState(() => _obscurePassword = !_obscurePassword);
-                },
+                () => setState(() {
+                  _obscurePassword = !_obscurePassword;
+                }),
               ),
-              const SizedBox(height: 16.0),
+              const SizedBox(height: 16),
+
               _buildPasswordField(
                 confirmPasswordController,
                 "Konfirmasi Password",
                 _obscureConfirmPassword,
-                () {
-                  setState(
-                    () => _obscureConfirmPassword = !_obscureConfirmPassword,
-                  );
-                },
+                () => setState(() {
+                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                }),
               ),
-              const SizedBox(height: 24.0),
+              const SizedBox(height: 24),
 
               ElevatedButton(
                 onPressed: _register,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: buttonColor,
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10.0),
+                    borderRadius: BorderRadius.circular(10),
                     side: const BorderSide(color: Colors.black, width: 1.5),
                   ),
                   elevation: 0,
@@ -90,21 +93,20 @@ class _SignupPageState extends State<SignupPage> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
-              const SizedBox(height: 16.0),
+              const SizedBox(height: 16),
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("Sudah punya akun? ", style: TextStyle(fontSize: 12)),
+                  const Text(
+                    "Sudah punya akun? ",
+                    style: TextStyle(fontSize: 12),
+                  ),
                   GestureDetector(
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LoginPage(),
-                        ),
-                      );
-                    },
+                    onTap: () => Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                    ),
                     child: Text(
                       "Login di sini",
                       style: TextStyle(
@@ -134,11 +136,10 @@ class _SignupPageState extends State<SignupPage> {
       keyboardType: keyboardType ?? TextInputType.text,
       decoration: InputDecoration(
         labelText: hint,
-        floatingLabelBehavior: FloatingLabelBehavior.auto,
         filled: true,
         fillColor: fieldBackgroundColor,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.0),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -161,10 +162,9 @@ class _SignupPageState extends State<SignupPage> {
       decoration: InputDecoration(
         labelText: hint,
         filled: true,
-        floatingLabelBehavior: FloatingLabelBehavior.auto,
         fillColor: fieldBackgroundColor,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10.0),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -179,7 +179,7 @@ class _SignupPageState extends State<SignupPage> {
     );
   }
 
-  void _register() {
+  void _register() async {
     String username = usernameController.text.trim();
     String nim = nimController.text.trim();
     String email = emailController.text.trim();
@@ -191,11 +191,45 @@ class _SignupPageState extends State<SignupPage> {
         email.isEmpty ||
         password.isEmpty ||
         confirmPassword.isEmpty) {
-      _showMessage("Semua field harus diisi!");
-    } else if (password != confirmPassword) {
-      _showMessage("Password tidak cocok!");
+      return _showMessage("Semua field harus diisi!");
+    }
+
+    if (password != confirmPassword) {
+      return _showMessage("Password tidak cocok!");
+    }
+
+    String result = await AuthService().registerUser(
+      username: username,
+      nim: nim,
+      email: email,
+      password: password,
+    );
+
+    if (result == "success") {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text("Registrasi Berhasil 🎉"),
+            content: const Text("Akun Anda berhasil dibuat. Silakan login."),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
+                  );
+                },
+                child: const Text("OK"),
+              ),
+            ],
+          );
+        },
+      );
     } else {
-      _showMessage("Pendaftaran berhasil untuk $username 🎉");
+      _showMessage(result);
     }
   }
 

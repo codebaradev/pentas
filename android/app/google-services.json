@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "171117236402",
+    "firebase_url": "https://pentas-a2f19-default-rtdb.firebaseio.com",
+    "project_id": "pentas-a2f19",
+    "storage_bucket": "pentas-a2f19.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:171117236402:android:a285358491ea82b41079ab",
+        "android_client_info": {
+          "package_name": "com.example.pentas"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "171117236402-j1jupv7tmile39cgv4ee1bm2mqujkrtb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.pentas",
+            "certificate_hash": "cbd1acfb161341b51d86ef90268711323818668e"
+          }
+        },
+        {
+          "client_id": "171117236402-gpppq05pd9cpctab4c3n0n6edlmkgl72.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBm7PfkSnLTUTihemZs8Fx1022CrR0dIsQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "171117236402-gpppq05pd9cpctab4c3n0n6edlmkgl72.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "171117236402-gk8g16ucj8p2fnk5v224d5o2r8nm3368.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.pentas"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pentas/pages/lab_page.dart';
 import 'package:pentas/pages/tools_page.dart';
 import 'package:pentas/pages/profile_page.dart';
-import 'package:pentas/pages/rules_page.dart'; // Import Anda sudah benar
+import 'package:pentas/pages/rules_page.dart';
+import 'package:pentas/pages/kontak_page.dart'; // Import Anda sudah benar
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -234,12 +235,18 @@ class _HomePageState extends State<HomePage> {
         ),
 
         // Item 4: Kontak
+        // Item 4: Kontak
         _buildGridItemSimple(
           icon: Icons.phone_in_talk_outlined,
           title: "Kontak Petugas\ndan bantuan",
           onTap: () {
-            // TODO: Tambahkan navigasi untuk Kontak di sini
-            print("Tombol Kontak ditekan!");
+            // Aksi: Pindah ke Halaman Kontak
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const KontakPage(),
+              ),
+            );
           },
         ),
       ],

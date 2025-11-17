@@ -390,7 +390,7 @@ class _HomePageState extends State<HomePage> {
             ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.edit_note_outlined),
-              label: "History",
+              label: "Jadwal",
               activeIcon: Icon(Icons.edit_note),
             ),
             BottomNavigationBarItem(

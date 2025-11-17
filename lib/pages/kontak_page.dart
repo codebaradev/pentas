@@ -1,28 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
-import 'package:pentas/pages/rules_page.dart';
+// Ganti 'rules_page.dart' dengan 'peraturan_page.dart' jika itu nama file Anda
+import 'package:pentas/pages/rules_page.dart'; 
 
-
-class LaboratoriumPage extends StatefulWidget {
-  const LaboratoriumPage({super.key});
+class KontakPage extends StatefulWidget {
+  const KontakPage({super.key});
 
   @override
-  State<LaboratoriumPage> createState() => _LaboratoriumPageState();
+  State<KontakPage> createState() => _KontakPageState();
 }
 
-class _LaboratoriumPageState extends State<LaboratoriumPage> {
-  int _selectedIndex = 0;
+class _KontakPageState extends State<KontakPage> {
+  int _selectedIndex = 0; 
+
+  // Mendefinisikan warna kustom dari gambar
   final Color cardColor = const Color(0xFFF9A887);
   final Color cardBackgroundColor = const Color(0xFFFFF0ED);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
 
-  // Fungsi navigasi Bottom Bar yang sudah dilengkapi
   void _onItemTapped(int index) {
       if (index == _selectedIndex) return; // Tidak ada aksi jika di halaman yg sama
 
       if (index == 0) {
         Navigator.pop(context); // Kembali ke Home
+        return;
+      }
+      
+      if (index == 1) { // Index 1 adalah History/Jadwal
+        Navigator.pushReplacement( // Ganti halaman
+          context,
+          // Pastikan Anda punya RulesPage() atau ganti dengan PeraturanPage()
+          MaterialPageRoute(builder: (context) => const PeraturanPage()),
+        );
         return;
       }
 
@@ -46,17 +56,17 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
       }
     }
 
-  @override
+    @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: pageBackgroundColor,
       appBar: AppBar(
         title: const Text(
-          "Laboratorium",
+          "Kontak",
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.transparent, 
+        backgroundColor: Colors.transparent, // Transparan agar menyatu
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -65,12 +75,15 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 10),
-            _buildLabHeader(),
+            // 1. Header "Hi Dasmae !" (Sama seperti Home)
+            _buildWelcomeHeader(),
             const SizedBox(height: 24),
-            _buildLabBanner(),
+            // 2. Banner "Selamat Datang !" (Sama seperti Home)
+            _buildWelcomeBanner(),
             const SizedBox(height: 24),
+            // 3. Judul "Kontak Petugas"
             const Text(
-              "Ruangan yang tersedia",
+              "Kontak Petugas",
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -78,23 +91,26 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
               ),
             ),
             const SizedBox(height: 16),
-            _buildRoomGrid(),
-            const SizedBox(height: 20),
+            // 4. Grid Kontak
+            _buildKontakGrid(),
+            const SizedBox(height: 20), // Spasi di bawah
           ],
         ),
       ),
+      // 5. Bottom Navigation Bar Kustom
       bottomNavigationBar: _buildCustomBottomNav(),
     );
   }
 
   // --- WIDGET HELPER ---
 
-  Widget _buildLabHeader() {
+  // Header "Hi Dasmae" (Disalin dari Home)
+  Widget _buildWelcomeHeader() {
     return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Dasmae",
+          "Hi Dasmae !",
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
@@ -103,7 +119,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
         ),
         SizedBox(height: 4),
         Text(
-          "Ayo gunakan Laboratorium ITH",
+          "Jalani harimu dengan ceria.",
           style: TextStyle(
             fontSize: 16,
             color: Colors.black54,
@@ -113,7 +129,8 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     );
   }
 
-  Widget _buildLabBanner() {
+  // Banner "Selamat Datang" (Disalin dari Home, dengan perbaikan placeholder)
+  Widget _buildWelcomeBanner() {
     return Container(
       decoration: BoxDecoration(
         color: cardBackgroundColor,
@@ -124,6 +141,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
         borderRadius: BorderRadius.circular(18),
         child: Row(
           children: [
+            // Bagian Kiri (Teks)
             Expanded(
               flex: 3,
               child: Padding(
@@ -132,7 +150,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      "Laboratory !",
+                      "Selamat Datang !",
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -141,7 +159,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Laboratorium fasilitas kampus dengan komputer yang memadai.",
+                      "Ayo gunakan fasilitas kampus dengan mudah, optimal, dan bijak.",
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[800],
@@ -152,6 +170,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
                 ),
               ),
             ),
+            // Bagian Kanan (Gambar Placeholder)
             Expanded(
               flex: 2,
               child: Container(
@@ -170,119 +189,81 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     );
   }
 
-  // Grid Ruangan 2x2
-  Widget _buildRoomGrid() {
+  // Grid Kontak 2x2
+  Widget _buildKontakGrid() {
     return GridView.count(
       crossAxisCount: 2,
-      crossAxisSpacing: 8, // Mengembalikan ke 8 sesuai kode Anda
-      mainAxisSpacing: 8, // Mengembalikan ke 8 sesuai kode Anda
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 0.95, 
+      childAspectRatio: 0.9,
       children: [
-        // Item 1: Room 201
-        _buildRoomCard(roomNumber: "201", isAvailable: true, kapasitas: "49"),
-        // Item 2: Room 202
-        _buildRoomCard(roomNumber: "202", isAvailable: true, kapasitas: "30"),
-        // Item 3: Room 203
-        _buildRoomCard(roomNumber: "203", isAvailable: false, kapasitas: "56"),
-        // Item 4: Room 204
-        _buildRoomCard(roomNumber: "204", isAvailable: true, kapasitas: "56"),
+        // Item 1: WhatsApp
+        _buildKontakCard(
+          title: "WhatsApp",
+          icon: Icons.contact_page_outlined, // Ikon WhatsApp
+          iconColor: Colors.green.shade700, // Warna khas WhatsApp
+          onTap: () {
+            print("Tombol WhatsApp ditekan!");
+            // TODO: Tambahkan aksi (misal: buka URL WhatsApp)
+          },
+        ),
+        // Item 2: Gmail
+        _buildKontakCard(
+          title: "Gmail",
+          icon: Icons.mail_outline, // Ikon Gmail
+          iconColor: Colors.red.shade700, // Warna khas Gmail
+          onTap: () {
+            print("Tombol Gmail ditekan!");
+            // TODO: Tambahkan aksi (misal: buka email)
+          },
+        ),
       ],
     );
   }
 
-  // --- PERBAIKAN UTAMA ADA DI FUNGSI INI ---
-  Widget _buildRoomCard({
-    required String roomNumber,
-    required bool isAvailable,
-    required String kapasitas,
+  // Helper untuk membuat card kontak
+  Widget _buildKontakCard({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required VoidCallback onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
+    return Material(
+      color: cardColor, // Warna oranye
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.black, width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Judul "Room 201"
-          Text(
-            "Room $roomNumber",
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.black, width: 2),
           ),
-          const SizedBox(height: 12), 
-
-          // 2. Info Lab & Kapasitas
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.computer_outlined, size: 30, color: Colors.black),
-              const SizedBox(width: 8),
-              Expanded( 
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Teks "Laboratorium"
-                    const Text(
-                      "Laboratorium",
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2), 
-                    
-                    // --- INI PERBAIKANNYA ---
-                    // Baris "Kapasitas : 49 [ikon]"
-                    Row(
-                      children: [
-                        // 1. Bungkus Teks dengan Flexible
-                        Flexible(
-                          child: Text(
-                            "Kapasitas : $kapasitas",
-                            style: const TextStyle(fontSize: 11, color: Colors.black54),
-                            // 2. Tambahkan overflow ellipsis
-                            overflow: TextOverflow.ellipsis, 
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.people, size: 14, color: Colors.black54),
-                      ],
-                    ),
-                    // --- AKHIR PERBAIKAN ---
-                  ],
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
                 ),
               ),
+              const SizedBox(height: 12),
+              Icon(icon, size: 80, color: iconColor), // Ikon besar berwarna
             ],
           ),
-          
-          const Spacer(), // Mendorong status ke bawah
-          
-          // 3. Status "Available"
-          Text(
-            isAvailable ? "Available" : "Not Available",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: isAvailable ? FontWeight.normal : FontWeight.bold, 
-              color: Colors.black,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
-  // --- AKHIR PERBAIKAN DESAIN GRID ---
 
-
-  // --- Bottom Nav Bar (Tidak berubah) ---
+  // --- Bottom Nav Bar (Disalin dari halaman lain) ---
   Widget _buildCustomBottomNav() {
     return Container(
       height: 80,
@@ -355,4 +336,5 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
       ),
     );
   }
+
 }

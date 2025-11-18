@@ -103,7 +103,6 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 16.0),
 
-<<<<<<< HEAD
               // TOMBOL LOGIN
               SizedBox(
                 width: double.infinity,
@@ -118,25 +117,6 @@ class _LoginPageState extends State<LoginPage> {
                       side: const BorderSide(color: Colors.black, width: 1.5),
                     ),
                     elevation: 0,
-=======
-              ElevatedButton(
-                onPressed: () {
-                  // Navigasi ke HomePage setelah login
-                  // pushReplacement agar tidak bisa kembali ke halaman login
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const HomePage()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: buttonColor,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 16.0),
-                  shape: RoundedRectangleBorder(
-                    // --- INI PERBAIKAN ERRORNYA ---
-                    borderRadius: BorderRadius.circular(10.0),
-                    side: const BorderSide(color: Colors.black, width: 1.5),
->>>>>>> main
                   ),
                   child: _isLoading
                       ? const SizedBox(

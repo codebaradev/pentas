@@ -83,9 +83,7 @@ class _LoginPageState extends State<LoginPage> {
                   // pushReplacement agar tidak bisa kembali ke halaman login
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const HomePage(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const HomePage()),
                   );
                 },
                 style: ElevatedButton.styleFrom(

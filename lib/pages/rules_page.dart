@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/login_page.dart';
+import 'package:pentas/pages/form_page.dart';
 
 class PeraturanPage extends StatefulWidget {
   const PeraturanPage({super.key});
@@ -52,11 +53,14 @@ class _PeraturanPageState extends State<PeraturanPage> {
     if (index == 0) {
       // Kembali ke Home
       Navigator.pop(context);
-    } else if (index == 2) {
-      // Tombol Add
-      print("Tombol Add ditekan!");
-      return;
-    } else if (index == 4) {
+    } else if (index == 2) { 
+        // Pindah ke Halaman Form Peminjaman
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
+        );
+        return;
+      } else if (index == 4) {
       // Ganti ke Halaman Profile
       Navigator.pushReplacement(
         context,

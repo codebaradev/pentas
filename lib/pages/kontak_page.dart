@@ -3,6 +3,7 @@ import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 // Ganti 'rules_page.dart' dengan 'peraturan_page.dart' jika itu nama file Anda
 import 'package:pentas/pages/rules_page.dart'; 
+import 'package:pentas/pages/form_page.dart';
 
 class KontakPage extends StatefulWidget {
   const KontakPage({super.key});
@@ -36,8 +37,12 @@ class _KontakPageState extends State<KontakPage> {
         return;
       }
 
-      if (index == 2) { // Tombol Add
-        print("Tombol Add ditekan!");
+      if (index == 2) { 
+        // Pindah ke Halaman Form Peminjaman
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
+        );
         return;
       }
       

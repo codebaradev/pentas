@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/rules_page.dart';
+import 'package:pentas/pages/profile_page.dart';
+import 'package:pentas/pages/form_page.dart';
 
 class PeralatanPage extends StatefulWidget {
   const PeralatanPage({super.key});
@@ -20,10 +22,14 @@ class _PeralatanPageState extends State<PeralatanPage> {
     if (index == 0) {
       Navigator.pop(context);
     }
-    if (index == 2) {
-      print("Tombol add ditekan");
-      return;
-    }
+    if (index == 2) { 
+        // Pindah ke Halaman Form Peminjaman
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
+        );
+        return;
+      }
     
     setState(() {
       _selectedIndex = index;

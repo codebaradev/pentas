@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/rules_page.dart';
+import 'package:pentas/pages/form_page.dart';
 
 
 class LaboratoriumPage extends StatefulWidget {
@@ -26,8 +27,12 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
         return;
       }
 
-      if (index == 2) { // Tombol Add
-        print("Tombol Add ditekan!");
+      if (index == 2) { 
+        // Pindah ke Halaman Form Peminjaman
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
+        );
         return;
       }
       

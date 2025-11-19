@@ -3,7 +3,8 @@ import 'package:pentas/pages/lab_page.dart';
 import 'package:pentas/pages/tools_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/rules_page.dart';
-import 'package:pentas/pages/kontak_page.dart'; // Import Anda sudah benar
+import 'package:pentas/pages/kontak_page.dart';
+import 'package:pentas/pages/form_page.dart';// Import Anda sudah benar
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -20,8 +21,12 @@ class _HomePageState extends State<HomePage> {
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
 
   void _onItemTapped(int index) {
-      if (index == 2) {
-        print("Tombol Add ditekan");
+      if (index == 2) { 
+        // Pindah ke Halaman Form Peminjaman
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
+        );
         return;
       }
       

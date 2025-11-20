@@ -4,7 +4,9 @@ import 'package:pentas/pages/tools_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/kontak_page.dart';
-import 'package:pentas/pages/form_page.dart';// Import Anda sudah benar
+import 'package:pentas/pages/form_page.dart';
+import 'package:pentas/pages/jadwal_page.dart';
+// Import Anda sudah benar
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,6 +23,14 @@ class _HomePageState extends State<HomePage> {
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
 
   void _onItemTapped(int index) {
+      if (index == 1) {
+        // Pindah ke Halaman Jadwal
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const JadwalPage()),
+        );
+        return;
+      }
       if (index == 2) { 
         // Pindah ke Halaman Form Peminjaman
         Navigator.push(

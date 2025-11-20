@@ -3,6 +3,7 @@ import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/login_page.dart';
 import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/form_page.dart';
+import 'package:pentas/pages/jadwal_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -26,6 +27,14 @@ class _ProfilePageState extends State<ProfilePage> {
       // (Kita asumsikan Home adalah halaman di bawah Profile)
       Navigator.pop(context);
     } 
+    else if (index == 1) {
+        // Pindah ke Halaman Jadwal
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const JadwalPage()),
+        );
+        return;
+    }
     else if (index == 2) { 
         // Pindah ke Halaman Form Peminjaman
         Navigator.push(
@@ -262,7 +271,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.edit_note_outlined),
-              label: "History",
+              label: "Jadwal",
               activeIcon: Icon(Icons.edit_note),
             ),
             BottomNavigationBarItem(

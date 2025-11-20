@@ -3,6 +3,7 @@ import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/form_page.dart';
+import 'package:pentas/pages/jadwal_page.dart';
 
 
 class LaboratoriumPage extends StatefulWidget {
@@ -24,6 +25,15 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
 
       if (index == 0) {
         Navigator.pop(context); // Kembali ke Home
+        return;
+      }
+
+      if (index == 1) {
+        // Pindah ke Halaman Jadwal
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const JadwalPage()),
+        );
         return;
       }
 

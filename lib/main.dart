@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'pages/welcome_page.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:pentas/pages/admin/admin_home_page.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

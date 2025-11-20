@@ -1,3 +1,4 @@
 {
-  "java.configuration.updateBuildConfiguration": "interactive"
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "cmake.sourceDirectory": "D:/KULIAH/SEMESTER 5/PEMROGRAMAN MOBILE/Proyek/pentas/linux"
 }

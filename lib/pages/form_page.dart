@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/rules_page.dart';
+import 'package:pentas/pages/jadwal_page.dart';
 
 class FormPeminjamanPage extends StatefulWidget {
   const FormPeminjamanPage({super.key});
@@ -51,10 +52,12 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
         (route) => false,
       );
     } else if (index == 1) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const PeraturanPage()), // Sesuaikan nama class
-      );
+        // Pindah ke Halaman Jadwal
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const JadwalPage()),
+        );
+        return;
     } else if (index == 4) {
       Navigator.pushReplacement(
         context,

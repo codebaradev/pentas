@@ -4,6 +4,7 @@ import 'package:pentas/pages/profile_page.dart';
 // Ganti 'rules_page.dart' dengan 'peraturan_page.dart' jika itu nama file Anda
 import 'package:pentas/pages/rules_page.dart'; 
 import 'package:pentas/pages/form_page.dart';
+import 'package:pentas/pages/jadwal_page.dart';
 
 class KontakPage extends StatefulWidget {
   const KontakPage({super.key});
@@ -28,11 +29,11 @@ class _KontakPageState extends State<KontakPage> {
         return;
       }
       
-      if (index == 1) { // Index 1 adalah History/Jadwal
-        Navigator.pushReplacement( // Ganti halaman
+      if (index == 1) {
+        // Pindah ke Halaman Jadwal
+        Navigator.pushReplacement(
           context,
-          // Pastikan Anda punya RulesPage() atau ganti dengan PeraturanPage()
-          MaterialPageRoute(builder: (context) => const PeraturanPage()),
+          MaterialPageRoute(builder: (context) => const JadwalPage()),
         );
         return;
       }

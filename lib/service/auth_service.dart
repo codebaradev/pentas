@@ -1,11 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService {
+  // Instance Firebase
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // REGISTER USER
+  // --- 1. REGISTER USER (MAHASISWA) ---
   Future<String> registerUser({
     required String username,
     required String nim,
@@ -13,60 +14,87 @@ class AuthService {
     required String password,
   }) async {
     try {
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
+      // A. Buat Akun di Authentication (Email & Password)
+      UserCredential userCredential =
+          await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      User user = result.user!;
-
-      await _db.collection("users").doc(user.uid).set({
-        "nama": username,
-        "nim": nim,
-        "email": email,
-        "role": "mahasiswa",
-        "created_at": FieldValue.serverTimestamp(),
+      // B. Simpan Data Detail ke Firestore
+      // Kita otomatis set role menjadi 'mahasiswa'
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
+        'uid': userCredential.user!.uid,
+        'name': username,
+        'nim': nim,
+        'email': email,
+        'role': 'mahasiswa', // Default role
+        'status': 'Aktif',
+        'createdAt': FieldValue.serverTimestamp(),
       });
 
       return "success";
     } on FirebaseAuthException catch (e) {
-      return e.message ?? "Terjadi kesalahan";
+      return _handleAuthError(e);
+    } catch (e) {
+      return "Terjadi kesalahan: $e";
     }
   }
 
-  // LOGIN PAKAI NIM
-  Future<String> loginWithNim({
-    required String nim,
+  // --- 2. LOGIN USER (EMAIL) ---
+  // Mengembalikan objek User jika berhasil, atau null jika gagal/error
+  Future<String?> loginUser({
+    required String email,
     required String password,
   }) async {
     try {
-      // Cari user berdasarkan NIM
-      var snap = await _db
-          .collection("users")
-          .where("nim", isEqualTo: nim)
-          .limit(1)
-          .get();
-
-      if (snap.docs.isEmpty) {
-        return "NIM tidak ditemukan";
-      }
-
-      var data = snap.docs.first.data();
-
-      if (!data.containsKey("email")) {
-        return "Email tidak ditemukan untuk NIM ini";
-      }
-
-      String email = data["email"];
-
-      // Login pakai email dari Firestore
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-
+      await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
       return "success";
     } on FirebaseAuthException catch (e) {
-      return e.message ?? "Login gagal";
+      return _handleAuthError(e);
     } catch (e) {
-      return "Terjadi kesalahan";
+      return "Terjadi kesalahan: $e";
+    }
+  }
+
+  // --- 3. AMBIL ROLE USER ---
+  Future<String> getUserRole() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      DocumentSnapshot doc =
+          await _firestore.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        return doc.get('role') ?? 'mahasiswa';
+      }
+    }
+    return 'mahasiswa'; // Default jika tidak ditemukan
+  }
+
+  // --- 4. LOGOUT ---
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
+
+  // --- HELPER: MENANGANI ERROR FIREBASE ---
+  String _handleAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return "Email sudah terdaftar.";
+      case 'invalid-email':
+        return "Format email tidak valid.";
+      case 'weak-password':
+        return "Password terlalu lemah.";
+      case 'user-not-found':
+        return "Pengguna tidak ditemukan.";
+      case 'wrong-password':
+        return "Password salah.";
+      case 'user-disabled':
+        return "Akun ini telah dinonaktifkan.";
+      default:
+        return e.message ?? "Terjadi kesalahan autentikasi.";
     }
   }
 }

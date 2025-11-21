@@ -15,8 +15,8 @@ class _LoginPageState extends State<LoginPage> {
   bool _isPasswordObscured = true;
   bool _isLoading = false;
 
-  // --- 1. MENGGUNAKAN EMAIL, BUKAN NIM ---
-  final _emailController = TextEditingController();
+  // Controller untuk NIM dan Password
+  final _nimController = TextEditingController();
   final _passwordController = TextEditingController();
 
   final AuthService _authService = AuthService();
@@ -26,53 +26,55 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _nimController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  // --- 2. LOGIKA LOGIN BARU ---
+  // --- LOGIKA LOGIN (NIM) ---
   Future<void> _login() async {
-    String email = _emailController.text.trim();
+    // 1. Ambil text dari controller NIM
+    String nim = _nimController.text.trim();
     String password = _passwordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
+    // 2. Validasi Input Kosong
+    if (nim.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Email dan Password harus diisi!")),
+        const SnackBar(content: Text("NIM/NIP dan Password harus diisi!")),
       );
       return;
     }
 
     setState(() => _isLoading = true);
 
-    // Panggil fungsi loginUser (menggunakan Email)
-    String? result = await _authService.loginUser(
-      email: email,
+    // 3. Panggil Service: loginUserWithNim (Bukan loginUser biasa)
+    String? result = await _authService.loginUserWithNim(
+      nim: nim,
       password: password,
     );
 
     if (result == "success") {
-      // --- 3. CEK ROLE JIKA LOGIN SUKSES ---
+      // 4. Jika Sukses, Cek Role (Admin / Mahasiswa)
       String role = await _authService.getUserRole();
       
       if (!mounted) return;
       setState(() => _isLoading = false);
 
       if (role == 'admin') {
-        // Navigasi ke Halaman Admin
+        // Masuk ke Halaman Admin (Kepala Lab)
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const AdminHomePage()),
         );
       } else {
-        // Navigasi ke Halaman Mahasiswa (Home)
+        // Masuk ke Halaman Mahasiswa (Home)
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomePage()),
         );
       }
     } else {
-      // Jika Login Gagal
+      // 5. Jika Gagal
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -99,12 +101,14 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 48.0),
 
-              // --- 4. INPUT EMAIL ---
+              // --- INPUT NIM / NIP ---
               TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress, // Keyboard email
+                controller: _nimController,
+                // Gunakan 'text' agar aman jika NIP mengandung spasi/tanda baca,
+                // atau 'number' jika pasti hanya angka.
+                keyboardType: TextInputType.text, 
                 decoration: InputDecoration(
-                  labelText: 'Email', // Label diubah jadi Email
+                  labelText: 'NIM / NIP', 
                   filled: true,
                   fillColor: fieldBackgroundColor,
                   border: OutlineInputBorder(
@@ -115,7 +119,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 16.0),
 
-              // INPUT PASSWORD
+              // --- INPUT PASSWORD ---
               TextField(
                 controller: _passwordController,
                 obscureText: _isPasswordObscured,
@@ -141,7 +145,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 12.0),
 
-              // LUPA PASSWORD & DAFTAR
+              // --- TOMBOL LUPA PASSWORD & DAFTAR ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -171,7 +175,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 24.0),
 
-              // TOMBOL LOGIN
+              // --- TOMBOL LOGIN ---
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

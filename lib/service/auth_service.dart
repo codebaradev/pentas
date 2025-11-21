@@ -41,17 +41,38 @@ class AuthService {
     }
   }
 
-  // --- 2. LOGIN USER (EMAIL) ---
-  // Mengembalikan objek User jika berhasil, atau null jika gagal/error
-  Future<String?> loginUser({
-    required String email,
+  // --- 2. LOGIN USER (MENGGUNAKAN NIM) ---
+  // Karena Firebase Auth butuh Email, kita cari Email dulu berdasarkan NIM
+  Future<String?> loginUserWithNim({
+    required String nim,
     required String password,
   }) async {
     try {
+      // A. Cari User di Firestore berdasarkan NIM
+      QuerySnapshot querySnapshot = await _firestore
+          .collection('users')
+          .where('nim', isEqualTo: nim)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return "NIM tidak ditemukan.";
+      }
+
+      // B. Ambil Email dari dokumen user tersebut
+      var userData = querySnapshot.docs.first.data() as Map<String, dynamic>;
+      String? email = userData['email'];
+
+      if (email == null || email.isEmpty) {
+        return "Data akun tidak valid (Email tidak ditemukan).";
+      }
+
+      // C. Login ke Firebase Auth menggunakan Email & Password
       await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
+
       return "success";
     } on FirebaseAuthException catch (e) {
       return _handleAuthError(e);
@@ -73,6 +94,20 @@ class AuthService {
     return 'mahasiswa'; // Default jika tidak ditemukan
   }
 
+  // --- 3.5. AMBIL DETAIL USER ---
+  Future<Map<String, dynamic>?> getUserDetails() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      try {
+        DocumentSnapshot doc =
+            await _firestore.collection('users').doc(user.uid).get();
+        return doc.data() as Map<String, dynamic>?;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
   // --- 4. LOGOUT ---
   Future<void> signOut() async {
     await _auth.signOut();

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 // Ganti import ini jika path file Anda berbeda
-import 'package:pentas/pages/form_page.dart'; 
+import 'package:pentas/pages/form_page.dart';
+import 'package:pentas/service/auth_service.dart';
 
 class JadwalPage extends StatefulWidget {
   const JadwalPage({super.key});
@@ -12,6 +13,23 @@ class JadwalPage extends StatefulWidget {
 }
 
 class _JadwalPageState extends State<JadwalPage> {
+  final AuthService _authService = AuthService();
+  String _username = "Pengguna"; // Nilai default
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userDetails = await _authService.getUserDetails();
+    if (mounted && userDetails != null) {
+      setState(() {
+        _username = userDetails['name'] ?? "Pengguna";
+      });
+    }
+  }
 
   int _selectedIndex = 1;
 
@@ -81,12 +99,12 @@ class _JadwalPageState extends State<JadwalPage> {
   }
 
   Widget _buildHeader() {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Hi Dasmae !",
-          style: TextStyle(
+          "Hi $_username!",
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
             color: Colors.black,

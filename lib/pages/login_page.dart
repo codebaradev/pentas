@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/signup_page.dart';
 import 'package:pentas/pages/home_page.dart';
-import '../service/auth_service.dart';
+import 'package:pentas/pages/admin/admin_home_page.dart'; // Import Admin Page
+import '../service/auth_service.dart'; // Pastikan path service benar
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,7 +13,9 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _isPasswordObscured = true;
+  bool _isLoading = false;
 
+  // Controller untuk NIM dan Password
   final _nimController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -21,30 +24,66 @@ class _LoginPageState extends State<LoginPage> {
   final Color fieldBackgroundColor = const Color(0xFFFFF0ED);
   final Color buttonColor = const Color(0xFFF9A887);
 
-  bool _isLoading = false;
+  @override
+  void dispose() {
+    _nimController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
+  // --- LOGIKA LOGIN (NIM) ---
   Future<void> _login() async {
-    setState(() => _isLoading = true);
-
+    // 1. Ambil text dari controller NIM
     String nim = _nimController.text.trim();
     String password = _passwordController.text.trim();
 
-    String result = await _authService.loginWithNim(
+    // 2. Validasi Input Kosong
+    if (nim.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("NIM/NIP dan Password harus diisi!")),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // 3. Panggil Service: loginUserWithNim (Bukan loginUser biasa)
+    String? result = await _authService.loginUserWithNim(
       nim: nim,
       password: password,
     );
 
-    setState(() => _isLoading = false);
-
     if (result == "success") {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomePage()),
-      );
+      // 4. Jika Sukses, Cek Role (Admin / Mahasiswa)
+      String role = await _authService.getUserRole();
+      
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (role == 'admin') {
+        // Masuk ke Halaman Admin (Kepala Lab)
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const AdminHomePage()),
+        );
+      } else {
+        // Masuk ke Halaman Mahasiswa (Home)
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+        );
+      }
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result)));
+      // 5. Jika Gagal
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result ?? "Login Gagal"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -56,17 +95,20 @@ class _LoginPageState extends State<LoginPage> {
           padding: const EdgeInsets.symmetric(horizontal: 32.0),
           child: Column(
             children: [
-              Text(
+              const Text(
                 'Sign In',
                 style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 48.0),
 
-              // NIM
+              // --- INPUT NIM / NIP ---
               TextField(
                 controller: _nimController,
+                // Gunakan 'text' agar aman jika NIP mengandung spasi/tanda baca,
+                // atau 'number' jika pasti hanya angka.
+                keyboardType: TextInputType.text, 
                 decoration: InputDecoration(
-                  labelText: 'NIM',
+                  labelText: 'NIM / NIP', 
                   filled: true,
                   fillColor: fieldBackgroundColor,
                   border: OutlineInputBorder(
@@ -77,7 +119,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 16.0),
 
-              // Password
+              // --- INPUT PASSWORD ---
               TextField(
                 controller: _passwordController,
                 obscureText: _isPasswordObscured,
@@ -101,9 +143,39 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16.0),
+              const SizedBox(height: 12.0),
 
-              // TOMBOL LOGIN
+              // --- TOMBOL LUPA PASSWORD & DAFTAR ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      // TODO: Logika Lupa Password
+                    },
+                    child: Text(
+                      'Lupa Password?',
+                      style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      // Navigasi ke Signup
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SignupPage()),
+                      );
+                    },
+                    child: Text(
+                      'Belum punya akun? Daftar',
+                      style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24.0),
+
+              // --- TOMBOL LOGIN ---
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -122,7 +194,8 @@ class _LoginPageState extends State<LoginPage> {
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.black),
                         )
                       : const Text(
                           "Login",
@@ -133,37 +206,6 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                 ),
               ),
-              const SizedBox(height: 24),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Belum punya akun? ",
-                    style: TextStyle(fontSize: 12),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      // Arahkan ke halaman SignupPage (ganti sesuai halaman Anda)
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const SignupPage()),
-                      );
-                    },
-                    child: Text(
-                      "Daftar",
-                      style: TextStyle(
-                        decoration: TextDecoration.underline,
-                        color: Colors.grey[700],
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
             ],
           ),
         ),

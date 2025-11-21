@@ -6,6 +6,7 @@ import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/kontak_page.dart';
 import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
+import 'package:pentas/service/auth_service.dart';
 // Import Anda sudah benar
 
 class HomePage extends StatefulWidget {
@@ -16,11 +17,28 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final AuthService _authService = AuthService();
+  String _username = "Pengguna"; // Default name
   int _selectedIndex = 0;
 
   final Color cardColor = const Color(0xFFF9A887);
   final Color cardBackgroundColor = const Color(0xFFFFF0ED);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userDetails = await _authService.getUserDetails();
+    if (mounted && userDetails != null) {
+      setState(() {
+        _username = userDetails['name'] ?? "Pengguna";
+      });
+    }
+  }
 
   void _onItemTapped(int index) {
       if (index == 1) {
@@ -99,12 +117,12 @@ class _HomePageState extends State<HomePage> {
 
   // Widget Helper
   Widget _buildWelcomeHeader() {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Hi Dasmae !",
-          style: TextStyle(
+          "Hi $_username!",
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
             color: Colors.black,
@@ -113,7 +131,7 @@ class _HomePageState extends State<HomePage> {
         SizedBox(height: 4),
         Text(
           "Jalani harimu dengan ceria",
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 16,
             color: Colors.black54,
           ),

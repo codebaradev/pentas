@@ -4,6 +4,7 @@ import 'package:pentas/pages/login_page.dart';
 import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
+import 'package:pentas/service/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -13,11 +14,37 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  final AuthService _authService = AuthService();
   int _selectedIndex = 4;
+
+  // Variabel untuk menampung data pengguna
+  String _name = "Memuat...";
+  String _nim = "Memuat...";
+  String _email = "Memuat...";
+  String _role = "Memuat...";
 
   final Color cardColor = const Color(0xFFF9A887);
   final Color cardBackgroundColor = const Color(0xFFFFF0ED);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  // Fungsi untuk mengambil data dari AuthService
+  Future<void> _loadUserData() async {
+    final userDetails = await _authService.getUserDetails();
+    if (mounted && userDetails != null) {
+      setState(() {
+        _name = userDetails['name'] ?? 'Data tidak ditemukan';
+        _nim = userDetails['nim'] ?? 'Data tidak ditemukan';
+        _email = userDetails['email'] ?? 'Data tidak ditemukan';
+        _role = userDetails['role'] ?? 'Data tidak ditemukan';
+      });
+    }
+  }
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return; // Tidak melakukan apa-apa jika sudah di halaman ini
@@ -155,13 +182,13 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       child: Column(
         children: [
-          _buildInfoRow("Nama", "Dasmae Hudzaifah"),
+          _buildInfoRow("Nama", _name),
           const SizedBox(height: 16),
-          _buildInfoRow("NIM", "2310 12345"),
+          _buildInfoRow("NIM", _nim),
           const SizedBox(height: 16),
-          _buildInfoRow("Email", "dasmaehudzaifah@mahasiswa.ith.ac.id"),
+          _buildInfoRow("Email", _email),
           const SizedBox(height: 16),
-          _buildInfoRow("Status", "Mahasiswa"),
+          _buildInfoRow("Status", _role),
           const SizedBox(height: 32),
           // Tombol Logout
           ElevatedButton(

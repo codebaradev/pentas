@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/login_page.dart';
+import 'package:pentas/service/auth_service.dart';
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({super.key});
@@ -9,9 +10,27 @@ class AdminHomePage extends StatefulWidget {
 }
 
 class _AdminHomePageState extends State<AdminHomePage> {
+  final AuthService _authService = AuthService();
+  String? _adminName;
+
   final Color primaryColor = const Color(0xFF526D9D); // Biru Gelap (Header/Sidebar)
   final Color cardColor = const Color(0xFFC8D6F5); // Biru Muda (Card)
   final Color backgroundColor = const Color(0xFFFFFFFF); // Putih
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAdminDetails();
+  }
+
+  Future<void> _loadAdminDetails() async {
+    final userDetails = await _authService.getUserDetails();
+    if (mounted && userDetails != null) {
+      setState(() {
+        _adminName = userDetails['name'];
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,13 +48,13 @@ class _AdminHomePageState extends State<AdminHomePage> {
             },
           );
         }),
-        actions: const [
+        actions: [
           Padding(
-            padding: EdgeInsets.only(right: 16.0),
+            padding: const EdgeInsets.only(right: 16.0),
             child: Center(
               child: Text(
-                "Hi Min Ajix",
-                style: TextStyle(
+                _adminName != null ? "Hi $_adminName" : "Loading...",
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -143,7 +162,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
             child: Align(
               alignment: Alignment.bottomRight,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
+                  await _authService.signOut();
                   // Logika Logout
                   Navigator.pushAndRemoveUntil(
                     context,

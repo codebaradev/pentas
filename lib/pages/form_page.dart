@@ -3,6 +3,7 @@ import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
+import 'package:pentas/service/auth_service.dart';
 
 class FormPeminjamanPage extends StatefulWidget {
   const FormPeminjamanPage({super.key});
@@ -12,6 +13,11 @@ class FormPeminjamanPage extends StatefulWidget {
 }
 
 class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
+  final AuthService _authService = AuthService();
+  String _name = "Memuat...";
+  String _nim = "Memuat...";
+  String _status = "Memuat...";
+
   int _selectedIndex = 0;
 
   final _formKey = GlobalKey<FormState>();
@@ -41,6 +47,23 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
   final Color cardHeaderColor = const Color(0xFFC06035); // Coklat/Oranye Gelap (Header)
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
   final Color inputFillColor = const Color(0xFFFFE0D6); // Warna input field
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userDetails = await _authService.getUserDetails();
+    if (mounted && userDetails != null) {
+      setState(() {
+        _name = userDetails['name'] ?? 'Data tidak ditemukan';
+        _nim = userDetails['nim'] ?? 'Data tidak ditemukan';
+        _status = userDetails['role'] ?? 'Data tidak ditemukan';
+      });
+    }
+  }
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
@@ -114,12 +137,12 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
   }
 
   Widget _buildHeader() {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Hi Dasmae !",
-          style: TextStyle(
+          "Hi $_name!",
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
             color: Colors.black,
@@ -165,11 +188,11 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Data Diri (Statis)
-                    _buildStaticInfoRow("Nama", "Dasmae Hudzaifah"),
+                    _buildStaticInfoRow("Nama", _name),
                     const SizedBox(height: 12),
-                    _buildStaticInfoRow("NIM", "2310 12345"),
+                    _buildStaticInfoRow("NIM", _nim),
                     const SizedBox(height: 12),
-                    _buildStaticInfoRow("Status", "Mahasiswa"),
+                    _buildStaticInfoRow("Status", _status),
                     
                     const SizedBox(height: 20),
 

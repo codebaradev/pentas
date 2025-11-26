@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/login_page.dart';
 import 'package:pentas/service/auth_service.dart';
+import 'package:pentas/pages/admin/create_dosen_page.dart';
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({super.key});
@@ -150,6 +151,31 @@ class _AdminHomePageState extends State<AdminHomePage> {
               ),
               onTap: () {
                 Navigator.pop(context); // Tutup drawer
+              },
+            ),
+          ),
+
+          Container(
+            decoration: const BoxDecoration(
+               border: Border(bottom: BorderSide(color: Colors.black, width: 1))
+            ),
+            child: ListTile(
+              leading: const Icon(Icons.person_add, color: Colors.black),
+              title: const Text(
+                "Buat Akun Dosen",
+                style: TextStyle(
+                  color: Colors.black, 
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context); // Tutup drawer dulu
+                // Buka Halaman Create Dosen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CreateDosenPage()),
+                );
               },
             ),
           ),

@@ -200,7 +200,7 @@ class _SignupPageState extends State<SignupPage> {
 
     String result = await AuthService().registerUser(
       username: username,
-      nim: nim,
+      identifier: nim,
       email: email,
       password: password,
     );

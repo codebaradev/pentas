@@ -9,12 +9,13 @@ class AuthService {
   // --- 1. REGISTER USER (MAHASISWA) ---
   Future<String> registerUser({
     required String username,
-    required String nim,
+    required String identifier, // NIM atau NIP
     required String email,
     required String password,
+    String role = 'mahasiswa', // Default role
   }) async {
     try {
-      // A. Buat Akun di Authentication (Email & Password)
+      // A. Buat Akun di Authentication
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -22,13 +23,15 @@ class AuthService {
       );
 
       // B. Simpan Data Detail ke Firestore
-      // Kita otomatis set role menjadi 'mahasiswa'
       await _firestore.collection('users').doc(userCredential.user!.uid).set({
         'uid': userCredential.user!.uid,
         'name': username,
-        'nim': nim,
+        // Simpan sebagai 'nim' agar konsisten dengan login, atau bisa diubah logic loginnya
+        // Untuk sekarang kita simpan di field 'nim' meskipun itu NIP,
+        // karena login_page mencari berdasarkan field 'nim'.
+        'nim': identifier, 
         'email': email,
-        'role': 'mahasiswa', // Default role
+        'role': role, 
         'status': 'Aktif',
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -48,7 +51,6 @@ class AuthService {
     required String password,
   }) async {
     try {
-      // A. Cari User di Firestore berdasarkan NIM
       QuerySnapshot querySnapshot = await _firestore
           .collection('users')
           .where('nim', isEqualTo: nim)
@@ -56,18 +58,16 @@ class AuthService {
           .get();
 
       if (querySnapshot.docs.isEmpty) {
-        return "NIM tidak ditemukan.";
+        return "NIM/NIP tidak ditemukan.";
       }
 
-      // B. Ambil Email dari dokumen user tersebut
       var userData = querySnapshot.docs.first.data() as Map<String, dynamic>;
       String? email = userData['email'];
 
       if (email == null || email.isEmpty) {
-        return "Data akun tidak valid (Email tidak ditemukan).";
+        return "Data akun tidak valid.";
       }
 
-      // C. Login ke Firebase Auth menggunakan Email & Password
       await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -91,7 +91,7 @@ class AuthService {
         return doc.get('role') ?? 'mahasiswa';
       }
     }
-    return 'mahasiswa'; // Default jika tidak ditemukan
+    return 'mahasiswa';
   }
 
   // --- 3.5. AMBIL DETAIL USER ---

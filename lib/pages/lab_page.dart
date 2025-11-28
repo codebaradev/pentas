@@ -4,6 +4,7 @@ import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
+import 'package:pentas/pages/notification_page.dart';
 
 
 class LaboratoriumPage extends StatefulWidget {
@@ -46,10 +47,13 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
         return;
       }
       
-      if (index == 3) { // Index 3 adalah Notifikasi
-         print("Tombol Notifikasi ditekan!");
-         // TODO: Tambahkan navigasi ke Halaman Notifikasi
-         return;
+      if (index == 3) {
+        // Pindah ke Halaman Notifikasi
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const NotificationPage()),
+        );
+        return;
       }
 
       if (index == 4) { // Index 4 adalah Profile
@@ -196,99 +200,56 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
       childAspectRatio: 0.95, 
       children: [
         // Item 1: Room 201
-        _buildRoomCard(roomNumber: "201", isAvailable: true, kapasitas: "49"),
-        // Item 2: Room 202
-        _buildRoomCard(roomNumber: "202", isAvailable: true, kapasitas: "30"),
-        // Item 3: Room 203
-        _buildRoomCard(roomNumber: "203", isAvailable: false, kapasitas: "56"),
-        // Item 4: Room 204
-        _buildRoomCard(roomNumber: "204", isAvailable: true, kapasitas: "56"),
+        _buildRoomCard("201", true, "49"),
+        _buildRoomCard("202", true, "30"),
+        _buildRoomCard("203", false, "56"),
+        _buildRoomCard("204", true, "56"),
       ],
     );
   }
 
   // --- PERBAIKAN UTAMA ADA DI FUNGSI INI ---
-  Widget _buildRoomCard({
-    required String roomNumber,
-    required bool isAvailable,
-    required String kapasitas,
-  }) {
+  Widget _buildRoomCard(String roomNumber, bool isAvailable, String capacity) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: cardColor, // Warna Biru Muda
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.black, width: 2),
+        border: Border.all(color: Colors.black54, width: 1),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // 1. Judul "Room 201"
           Text(
             "Room $roomNumber",
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 12), 
-
-          // 2. Info Lab & Kapasitas
+          const SizedBox(height: 8),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.computer_outlined, size: 30, color: Colors.black),
+              const Icon(Icons.computer_outlined, size: 30),
               const SizedBox(width: 8),
-              Expanded( 
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Teks "Laboratorium"
-                    const Text(
-                      "Laboratorium",
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2), 
-                    
-                    // --- INI PERBAIKANNYA ---
-                    // Baris "Kapasitas : 49 [ikon]"
-                    Row(
-                      children: [
-                        // 1. Bungkus Teks dengan Flexible
-                        Flexible(
-                          child: Text(
-                            "Kapasitas : $kapasitas",
-                            style: const TextStyle(fontSize: 11, color: Colors.black54),
-                            // 2. Tambahkan overflow ellipsis
-                            overflow: TextOverflow.ellipsis, 
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.people, size: 14, color: Colors.black54),
-                      ],
-                    ),
-                    // --- AKHIR PERBAIKAN ---
-                  ],
-                ),
-              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Laboratorium", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                  Row(
+                    children: [
+                      Text("Kapasitas : $capacity", style: const TextStyle(fontSize: 9)),
+                      const SizedBox(width: 2),
+                      const Icon(Icons.people, size: 10),
+                    ],
+                  ),
+                ],
+              )
             ],
           ),
-          
-          const Spacer(), // Mendorong status ke bawah
-          
-          // 3. Status "Available"
+          const SizedBox(height: 12),
           Text(
             isAvailable ? "Available" : "Not Available",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: isAvailable ? FontWeight.normal : FontWeight.bold, 
-              color: Colors.black,
-            ),
+            style: const TextStyle(fontSize: 14),
           ),
         ],
       ),

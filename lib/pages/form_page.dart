@@ -3,6 +3,7 @@ import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
+import 'package:pentas/pages/notification_page.dart';
 import 'package:pentas/service/auth_service.dart';
 
 class FormPeminjamanPage extends StatefulWidget {
@@ -81,7 +82,16 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
           MaterialPageRoute(builder: (context) => const JadwalPage()),
         );
         return;
-    } else if (index == 4) {
+    } 
+    else if (index == 3) {
+        // Pindah ke Halaman Notifikasi
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const NotificationPage()),
+        );
+        return;
+    }
+    else if (index == 4) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const ProfilePage()),
@@ -108,7 +118,7 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
       backgroundColor: pageBackgroundColor,
       appBar: AppBar(
         title: const Text(
-          "Aturan", // Judul AppBar sesuai gambar
+          "Peminjaman", // Judul AppBar sesuai gambar
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,

@@ -6,7 +6,9 @@ import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/kontak_page.dart';
 import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
+import 'package:pentas/pages/notification_page.dart';
 import 'package:pentas/service/auth_service.dart';
+
 // Import Anda sudah benar
 
 class HomePage extends StatefulWidget {
@@ -54,6 +56,15 @@ class _HomePageState extends State<HomePage> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
+        );
+        return;
+      }
+
+      if (index == 3) {
+        // Pindah ke Halaman Notifikasi
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const NotificationPage()),
         );
         return;
       }

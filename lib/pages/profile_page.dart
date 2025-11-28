@@ -4,6 +4,7 @@ import 'package:pentas/pages/login_page.dart';
 import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
+import 'package:pentas/pages/notification_page.dart';
 import 'package:pentas/service/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -69,7 +70,16 @@ class _ProfilePageState extends State<ProfilePage> {
           MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
         );
         return;
-    } else {
+    }
+    else if (index == 3) {
+        // Pindah ke Halaman Notifikasi
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const NotificationPage()),
+        );
+        return;
+    }
+    else {
       // TODO: Tambahkan navigasi untuk item lain (History, Notification)
       // Untuk saat ini, kita hanya kembali ke Home dan biarkan Home
       // yang menangani navigasi ke halaman lain

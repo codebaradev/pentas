@@ -5,6 +5,7 @@ import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/rules_page.dart'; 
 import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
+import 'package:pentas/pages/notification_page.dart';
 
 class KontakPage extends StatefulWidget {
   const KontakPage({super.key});
@@ -47,10 +48,13 @@ class _KontakPageState extends State<KontakPage> {
         return;
       }
       
-      if (index == 3) { // Index 3 adalah Notifikasi
-         print("Tombol Notifikasi ditekan!");
-         // TODO: Tambahkan navigasi ke Halaman Notifikasi
-         return;
+      if (index == 3) {
+        // Pindah ke Halaman Notifikasi
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const NotificationPage()),
+        );
+        return;
       }
 
       if (index == 4) { // Index 4 adalah Profile

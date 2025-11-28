@@ -1,76 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
-// Ganti import ini jika path file Anda berbeda
+import 'package:pentas/pages/rules_page.dart'; // Ganti dengan peraturan_page.dart jika nama file berbeda
 import 'package:pentas/pages/form_page.dart';
-import 'package:pentas/pages/notification_page.dart';
-import 'package:pentas/service/auth_service.dart';
+import 'package:pentas/pages/jadwal_page.dart';
 
-class JadwalPage extends StatefulWidget {
-  const JadwalPage({super.key});
+class NotificationPage extends StatefulWidget {
+  const NotificationPage({super.key});
 
   @override
-  State<JadwalPage> createState() => _JadwalPageState();
+  State<NotificationPage> createState() => _NotificationPageState();
 }
 
-class _JadwalPageState extends State<JadwalPage> {
-  final AuthService _authService = AuthService();
-  String _username = "Pengguna"; // Nilai default
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserData();
-  }
-
-  Future<void> _loadUserData() async {
-    final userDetails = await _authService.getUserDetails();
-    if (mounted && userDetails != null) {
-      setState(() {
-        _username = userDetails['name'] ?? "Pengguna";
-      });
-    }
-  }
-
-  int _selectedIndex = 1;
+class _NotificationPageState extends State<NotificationPage> {
+  int _selectedIndex = 3;
 
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
-  final Color headerDarkColor = const Color(0xFF2A2A2A); // Warna header tabel (gelap)
-  final Color rowLightColor = const Color(0xFFE0E0E0); // Warna baris tabel (abu muda)
+  final Color cardBackgroundColor = const Color(0xFF2A2A2A); // Latar belakang hitam untuk notifikasi
+  final Color greenBorderColor = const Color(0xFF67E082); // Hijau untuk 'Setujui'
+  final Color redBorderColor = const Color(0xFFFF4D4D); // Merah untuk 'Tolak'
+
+  final List<Map<String, dynamic>> _notifications = [
+    {
+      "message": "Peminjaman Ruangan 203 di Setujui !",
+      "status": "approved", // approved, rejected
+    },
+    {
+      "message": "Peminjaman Ruangan 201 di Tolak !",
+      "status": "rejected",
+    },
+    {
+      "message": "Peminjaman 2 Projektor di Tolak !",
+      "status": "rejected",
+    },
+    {
+      "message": "Peminjaman Spidol di Setujui !",
+      "status": "approved",
+    },
+  ];
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
 
     if (index == 0) {
-      // Kembali ke Home
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const HomePage()),
         (route) => false,
       );
+    } else if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const JadwalPage()),
+      );
     } else if (index == 2) {
-      // Tombol Add -> Form Peminjaman
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
       );
-    } 
-    else if (index == 3) {
-        // Pindah ke Halaman Notifikasi
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NotificationPage()),
-        );
-        return;
-    }
-    else if (index == 4) {
-      // Profile
+    } else if (index == 4) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const ProfilePage()),
       );
     }
-    // TODO: Index 3 (Notification)
   }
 
   @override
@@ -79,13 +72,13 @@ class _JadwalPageState extends State<JadwalPage> {
       backgroundColor: pageBackgroundColor,
       appBar: AppBar(
         title: const Text(
-          "Jadwal",
+          "Notifikasi",
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: false, // Tidak ada tombol kembali di root nav
+        automaticallyImplyLeading: false,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -97,8 +90,8 @@ class _JadwalPageState extends State<JadwalPage> {
             _buildHeader(),
             const SizedBox(height: 24),
             
-            // 2. Tabel Jadwal
-            _buildScheduleTable(),
+            // 2. Daftar Notifikasi (Card Hitam Besar)
+            _buildNotificationContainer(),
             
             const SizedBox(height: 100), // Spasi bawah
           ],
@@ -109,12 +102,12 @@ class _JadwalPageState extends State<JadwalPage> {
   }
 
   Widget _buildHeader() {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Hi $_username!",
-          style: const TextStyle(
+          "Hi Dasmae !",
+          style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
             color: Colors.black,
@@ -124,113 +117,92 @@ class _JadwalPageState extends State<JadwalPage> {
     );
   }
 
-  Widget _buildScheduleTable() {
+  Widget _buildNotificationContainer() {
     return Container(
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: headerDarkColor, // Latar belakang utama gelap
+        color: cardBackgroundColor, // Warna Hitam/Gelap
         borderRadius: BorderRadius.circular(20),
       ),
-      // ClipRRect agar anak-anaknya tidak keluar dari radius border
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          children: [
-            // --- Bagian Header "Jadwal Laboratorium" ---
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              color: headerDarkColor,
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Jadwal Laboratorium",
-                    style: TextStyle(
-                      color: Color(0xFFF9A887), // Warna oranye teks
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    "Kamis, 20 - Nov -2025",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // --- Baris Jadwal 1 (Isi) ---
-            _buildScheduleRow("Ruangan 203", "08:45 - 10:30"),
-            
-            // --- Baris Jadwal Kosong (Placeholder) ---
-            // Tambahkan beberapa baris kosong untuk visual sesuai gambar
-            _buildEmptyRow(),
-            _buildEmptyRow(),
-            _buildEmptyRow(),
-
-            // --- Area Kosong Bawah (Hitam/Gelap) ---
-            // Sisa ruang di bawah diisi warna gelap agar sesuai desain
-            Container(
-              height: 200, // Tinggi area kosong bawah
-              color: headerDarkColor,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScheduleRow(String room, String time) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        color: rowLightColor, // Abu-abu muda
-        border: const Border(
-          bottom: BorderSide(color: Colors.black, width: 1), // Garis pemisah hitam
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            room,
-            style: const TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
+          const Text(
+            "Notifikasi",
+            style: TextStyle(
+              color: Color(0xFFF9A887), // Warna Oranye untuk Judul
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          Text(
-            time,
-            style: const TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-            ),
+          const SizedBox(height: 24),
+          
+          // List Notifikasi
+          ListView.builder(
+            shrinkWrap: true, // Agar bisa di dalam Column/SingleScrollView
+            physics: const NeverScrollableScrollPhysics(), // Scroll mengikuti parent
+            itemCount: _notifications.length,
+            itemBuilder: (context, index) {
+              final notif = _notifications[index];
+              return _buildNotificationItem(
+                message: notif['message'],
+                isApproved: notif['status'] == 'approved',
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  // Helper: Baris Jadwal Kosong
-  Widget _buildEmptyRow() {
+  // Helper: Item Notifikasi (Tombol Putih dengan Border Hijau/Merah)
+  Widget _buildNotificationItem({required String message, required bool isApproved}) {
+    // Kita perlu memisahkan teks untuk styling (misal: "di Setujui !" berwarna hijau)
+    // Untuk simplifikasi sesuai gambar, kita gunakan RichText atau deteksi kata kunci.
+    
+    Color statusColor = isApproved ? greenBorderColor : redBorderColor;
+    String statusText = isApproved ? "Setujui !" : "Tolak !";
+    
+    // Memotong pesan agar kita bisa mewarnai statusnya
+    // Asumsi pesan selalu diakhiri dengan status
+    String mainText = message.replaceAll(statusText, "");
+
     return Container(
-      height: 45, // Tinggi baris kosong
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
       decoration: BoxDecoration(
-        color: rowLightColor,
-        border: const Border(
-          bottom: BorderSide(color: Colors.black, width: 1),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30), // Sudut sangat bulat (kapsul)
+        border: Border.all(
+          color: statusColor, // Border warna Hijau atau Merah
+          width: 3, // Border tebal sesuai gambar
+        ),
+      ),
+      child: Center(
+        child: RichText(
+          textAlign: TextAlign.center,
+          text: TextSpan(
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black87, // Warna teks utama (sedikit abu agar tidak terlalu kontras)
+              fontWeight: FontWeight.w500,
+            ),
+            children: [
+              TextSpan(text: mainText), // Teks utama ("Peminjaman Ruangan 203 di ")
+              TextSpan(
+                text: statusText, // Teks status ("Setujui !")
+                style: TextStyle(
+                  color: statusColor, // Warna status (Hijau/Merah)
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // --- Bottom Nav Bar ---
   Widget _buildCustomBottomNav() {
     return Container(
       height: 80,

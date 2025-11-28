@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pentas/pages/login_page.dart';
 import 'package:pentas/service/auth_service.dart';
 import 'package:pentas/pages/admin/create_dosen_page.dart';
+import 'package:pentas/pages/admin/permintaan_page.dart';
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({super.key});
@@ -129,8 +130,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
               ),
             ),
             onTap: () {
-              // TODO: Navigasi ke halaman request
-              Navigator.pop(context); 
+              Navigator.pop(context); // Tutup drawer
+              // Navigasi ke Halaman Permintaan
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PermintaanPage()),
+              ); 
             },
           ),
           

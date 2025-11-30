@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class PermintaanPage extends StatefulWidget {
   const PermintaanPage({super.key});
@@ -11,53 +13,11 @@ class PermintaanPage extends StatefulWidget {
 class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStateMixin {
   late TabController _tabController;
 
+  // Warna Tema Admin
   final Color primaryColor = const Color(0xFF526D9D);
-  final Color cardColor = const Color(0xFFC8D6F5); // Biru Muda
-  final Color approveColor = const Color(0xFF98FB98); // Hijau Muda (Terima)
+  final Color cardColor = const Color(0xFFC8D6F5); 
+  final Color approveColor = const Color(0xFF98FB98); 
   final Color rejectColor = const Color(0xFFFF6B6B);
-
-  final List<Map<String, dynamic>> _requests = [
-    {
-      "id": "1",
-      "name": "Aditya Septiawan",
-      "nim": "231011135",
-      "role": "Mahasiswa",
-      "whatsapp": "085342614904",
-      "item": "LAB 203",
-      "qty": 1,
-      "status": "pending", // pending, accepted, rejected
-    },
-    {
-      "id": "2",
-      "name": "Papa Zola",
-      "nim": "-",
-      "role": "Dosen",
-      "whatsapp": "085342614912",
-      "item": "LAB 201",
-      "qty": 1,
-      "status": "pending",
-    },
-    {
-      "id": "3",
-      "name": "Fahrul Reynaldi",
-      "nim": "-",
-      "role": "Dosen",
-      "whatsapp": "085342614913",
-      "item": "Projektor",
-      "qty": 1,
-      "status": "accepted",
-    },
-    {
-      "id": "4",
-      "name": "Ahmeng",
-      "nim": "231011101",
-      "role": "Mahasiswa",
-      "whatsapp": "085342614914",
-      "item": "HDMI Cable",
-      "qty": 2,
-      "status": "rejected",
-    },
-  ];
 
   @override
   void initState() {
@@ -71,20 +31,21 @@ class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStat
     super.dispose();
   }
 
-  void _updateStatus(String id, String newStatus) {
-    setState(() {
-      final index = _requests.indexWhere((element) => element['id'] == id);
-      if (index != -1) {
-        _requests[index]['status'] = newStatus;
-      }
+  // --- FUNGSI UPDATE STATUS DI FIREBASE ---
+  void _updateStatus(String docId, String newStatus) {
+    FirebaseFirestore.instance.collection('requests').doc(docId).update({
+      'status': newStatus,
     });
+
+    String message = newStatus == 'accepted' ? "Permintaan Disetujui" : "Permintaan Ditolak";
     
-    String message = newStatus == 'accepted' ? "Permintaan Diterima" : "Permintaan Ditolak";
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message),
-      backgroundColor: newStatus == 'accepted' ? Colors.green : Colors.red,
-      duration: const Duration(seconds: 1),
-    ));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(message),
+        backgroundColor: newStatus == 'accepted' ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 1),
+      ));
+    }
   }
 
   @override
@@ -108,51 +69,102 @@ class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStat
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildRequestList("pending"),
-          _buildRequestList("accepted"),
-          _buildRequestList("rejected"),
+          _buildRequestStream("pending"),  // Tab 1: Menunggu
+          _buildRequestStream("accepted"), // Tab 2: Diterima
+          _buildRequestStream("rejected"), // Tab 3: Ditolak
         ],
       ),
     );
   }
 
-  Widget _buildRequestList(String statusFilter) {
-    // Filter data sesuai tab
-    final filteredList = _requests.where((item) => item['status'] == statusFilter).toList();
+  // --- WIDGET STREAM DARI FIREBASE ---
+  Widget _buildRequestStream(String statusFilter) {
+    return StreamBuilder<QuerySnapshot>(
+      // Query realtime: Ambil 'requests' dimana status == filter tab
+      // Urutkan dari yang terbaru (createdAt descending)
+      stream: FirebaseFirestore.instance
+          .collection('requests')
+          .where('status', isEqualTo: statusFilter)
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      
+      builder: (context, snapshot) {
+        // 1. Loading
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-    if (filteredList.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              "Tidak ada permintaan $statusFilter",
-              style: TextStyle(color: Colors.grey[600]),
+        // 2. Error
+        if (snapshot.hasError) {
+          return Center(child: Text("Error: ${snapshot.error}"));
+        }
+
+        // 3. Data Kosong
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(
+                  "Tidak ada data $statusFilter",
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-    }
+          );
+        }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: filteredList.length,
-      itemBuilder: (context, index) {
-        final item = filteredList[index];
-        return _buildRequestCard(item);
+        // 4. Ada Data -> Tampilkan List
+        final docs = snapshot.data!.docs;
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+            final docId = doc.id; // ID Dokumen untuk update nanti
+
+            return _buildRequestCard(data, docId);
+          },
+        );
       },
     );
   }
 
-  Widget _buildRequestCard(Map<String, dynamic> item) {
+  // --- WIDGET KARTU PERMINTAAN ---
+  Widget _buildRequestCard(Map<String, dynamic> item, String docId) {
     bool isPending = item['status'] == 'pending';
+    
+    // Parsing data dengan nilai default (mencegah error null)
+    String name = item['name'] ?? 'Tanpa Nama';
+    String nim = item['nim'] ?? '-';
+    String role = item['role'] ?? '-';
+    String whatsapp = item['whatsapp'] ?? '-';
+    String room = item['room'] ?? '-';
+    String session = item['session'] ?? '-';
+    
+    // Format teks sesi agar tidak kepanjangan (misal: "Sesi 1...")
+    String shortSession = session.length > 6 ? session.substring(0, 6) : session;
+
+    // Logic Tampilan Barang (Ruangan + Jumlah Alat)
+    String itemDisplay = room;
+    bool hasTools = item['hasTools'] ?? false;
+    
+    if (hasTools) {
+      List<dynamic> tools = item['tools'] ?? [];
+      if (tools.isNotEmpty) {
+        // Contoh tampilan: "Ruang 201 (+ 2 Alat)"
+        itemDisplay = "$room (+ ${tools.length} Alat)";
+      }
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: cardColor.withOpacity(0.3), // Warna biru sangat muda
+        color: cardColor.withOpacity(0.3),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: primaryColor.withOpacity(0.3)),
       ),
@@ -161,7 +173,7 @@ class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStat
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Card: Nama & Role
+            // --- Header Card (Nama & Role) ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -169,14 +181,11 @@ class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStat
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item['name'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      name,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      "${item['role']} • ${item['nim']}",
+                      "$role • $nim",
                       style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                     ),
                   ],
@@ -191,7 +200,7 @@ class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStat
                       border: Border.all(color: Colors.black54),
                     ),
                     child: Text(
-                      item['status'] == 'accepted' ? "On Air" : "Ditolak",
+                      item['status'] == 'accepted' ? "Disetujui" : "Ditolak",
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -200,27 +209,24 @@ class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStat
             
             const Divider(height: 24),
 
-            // Detail Peminjaman
+            // --- Detail Peminjaman ---
             Row(
               children: [
-                Expanded(
-                  child: _buildInfoColumn("Barang/Ruang", item['item']),
-                ),
-                _buildInfoColumn("Jumlah", "${item['qty']} Unit"),
-                Expanded(
-                  child: _buildInfoColumn("Kontak", item['whatsapp']),
-                ),
+                Expanded(child: _buildInfoColumn("Peminjaman", itemDisplay)),
+                _buildInfoColumn("Sesi", shortSession),
+                Expanded(child: _buildInfoColumn("Kontak", whatsapp)),
               ],
             ),
 
-            // Tombol Aksi (Hanya untuk Pending)
+            // --- Tombol Aksi (Hanya Muncul di Tab Baru/Pending) ---
             if (isPending) ...[
               const SizedBox(height: 16),
               Row(
                 children: [
+                  // Tombol Terima
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => _showConfirmDialog(item, 'accepted'),
+                      onPressed: () => _showConfirmDialog(name, itemDisplay, docId, 'accepted'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: approveColor,
                         foregroundColor: Colors.black,
@@ -233,9 +239,10 @@ class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStat
                     ),
                   ),
                   const SizedBox(width: 16),
+                  // Tombol Tolak
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => _showConfirmDialog(item, 'rejected'),
+                      onPressed: () => _showConfirmDialog(name, itemDisplay, docId, 'rejected'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: rejectColor,
                         foregroundColor: Colors.black,
@@ -256,6 +263,7 @@ class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStat
     );
   }
 
+  // Helper untuk kolom info kecil
   Widget _buildInfoColumn(String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,14 +275,14 @@ class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStat
     );
   }
 
-  // Dialog Konfirmasi
-  void _showConfirmDialog(Map<String, dynamic> item, String action) {
+  // --- DIALOG KONFIRMASI ---
+  void _showConfirmDialog(String name, String item, String docId, String action) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(action == 'accepted' ? "Terima Permintaan?" : "Tolak Permintaan?"),
         content: Text(
-          "Anda akan ${action == 'accepted' ? 'menyetujui' : 'menolak'} peminjaman ${item['item']} oleh ${item['name']}.",
+          "Anda akan ${action == 'accepted' ? 'menyetujui' : 'menolak'} peminjaman $item oleh $name.",
         ),
         actions: [
           TextButton(
@@ -283,8 +291,8 @@ class _PermintaanPageState extends State<PermintaanPage> with TickerProviderStat
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
-              _updateStatus(item['id'], action);
+              Navigator.pop(context); // Tutup dialog
+              _updateStatus(docId, action); // Jalankan update ke Firebase
             },
             child: const Text("Ya"),
           ),

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Wajib: Firestore
+import 'package:firebase_auth/firebase_auth.dart';     // Wajib: Auth
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
 import 'package:pentas/pages/notification_page.dart';
-import 'package:pentas/service/auth_service.dart';
+// import 'package:pentas/service/auth_service.dart'; // Tidak wajib di sini, kita pakai direct firestore
 
 class FormPeminjamanPage extends StatefulWidget {
   const FormPeminjamanPage({super.key});
@@ -13,104 +15,143 @@ class FormPeminjamanPage extends StatefulWidget {
 }
 
 class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
-  final AuthService _authService = AuthService();
+  // Data User (Diambil otomatis)
   String _name = "Memuat...";
   String _nim = "Memuat...";
   String _status = "Memuat...";
 
-  int _selectedIndex = 2;
+  int _selectedIndex = 2; // Index tombol Add
 
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _whatsappController = TextEditingController(text: "085342614904");
-  
+  bool _isLoading = false; // Loading indicator
+
+  // Data Pilihan
   String? _selectedRoom;
   final List<String> _roomList = [
-    "Ruangan Kelas 201",
-    "Ruangan Kelas 202",
-    "Ruangan Kelas 203",
-    "Ruangan Kelas 204",
+    "Ruangan Kelas 201", "Ruangan Kelas 202", "Ruangan Kelas 203", "Ruangan Kelas 204",
   ];
 
   String? _selectedSession;
   final List<String> _sessionList = [
-    "Sesi 1: 07.00-08.40",
-    "Sesi 2: 08.45-10.25",
-    "Sesi 3: 10.30-12.10",
-    "Sesi 4: 13.30-15.10",
-    "Sesi 5: 15.15-16.55",
-    "Sesi 6: 17.00-18.40",
+    "Sesi 1: 07.00-08.40", "Sesi 2: 08.45-10.25", "Sesi 3: 10.30-12.10",
+    "Sesi 4: 13.30-15.10", "Sesi 5: 15.15-16.55", "Sesi 6: 17.00-18.40",
   ];
 
-  bool _isBorrowingFacilities = true;
-
+  // Logika Fasilitas
+  bool _isBorrowingFacilities = false; // Default false agar rapi
   List<Map<String, dynamic>> _selectedFacilities = [
-    {'name': 'Proyektor', 'qty': 1} // Default item pertama
+    {'name': 'Proyektor', 'qty': 1} 
   ];
-
   final List<String> _facilityOptions = [
-    "Proyektor",
-    "Terminal Kabel",
-    "HDMI Kabel",
-    "Spidol",
-    "Lainnya"
+    "Proyektor", "Terminal Kabel", "HDMI Kabel", "Spidol", "Lainnya"
   ];
 
-  final Color cardColor = const Color(0xFFF9A887); // Oranye Terang
-  final Color cardHeaderColor = const Color(0xFFC06035); // Coklat/Oranye Gelap (Header)
+  // Warna UI
+  final Color cardColor = const Color(0xFFF9A887);
+  final Color cardHeaderColor = const Color(0xFFC06035);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
-  final Color inputFillColor = const Color(0xFFFFE0D6); // Warna input field
+  final Color inputFillColor = const Color(0xFFFFE0D6);
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _fetchUserData(); // Ambil data user saat init
   }
 
-  Future<void> _loadUserData() async {
-    final userDetails = await _authService.getUserDetails();
-    if (mounted && userDetails != null) {
-      setState(() {
-        _name = userDetails['name']?.toString() ?? 'Data tidak ditemukan';
-        _nim = userDetails['nim']?.toString() ?? 'Data tidak ditemukan';
-        _status = userDetails['role']?.toString() ?? 'Data tidak ditemukan';
-      });
+  // --- 1. AMBIL DATA USER DARI FIREBASE ---
+  Future<void> _fetchUserData() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (userDoc.exists && mounted) {
+        setState(() {
+          _name = userDoc.get('name') ?? 'Tanpa Nama';
+          _nim = userDoc.get('nim') ?? '-';
+          _status = userDoc.get('status') ?? 'Mahasiswa';
+        });
+      }
     }
   }
 
+  // --- 2. LOGIKA SUBMIT KE FIREBASE ---
+  Future<void> _submitRequest() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedRoom == null || _selectedSession == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Pilih Ruangan dan Sesi!")));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      
+      // Siapkan data alat (jika switch ON)
+      List<Map<String, dynamic>> toolsData = [];
+      if (_isBorrowingFacilities) {
+        toolsData = _selectedFacilities;
+      }
+
+      // Simpan ke Firestore: Collection 'requests'
+      await FirebaseFirestore.instance.collection('requests').add({
+        'userId': user?.uid,
+        'name': _name,
+        'nim': _nim,
+        'role': _status,
+        'whatsapp': _whatsappController.text,
+        'room': _selectedRoom,
+        'session': _selectedSession,
+        'tools': toolsData,
+        'hasTools': _isBorrowingFacilities,
+        'status': 'pending', // Status awal: Menunggu Persetujuan
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        // Tampilkan dialog sukses
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text("Berhasil 🎉"),
+            content: const Text("Permintaan peminjaman telah dikirim ke Admin."),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); // Tutup dialog
+                  Navigator.pop(context); // Kembali ke halaman sebelumnya
+                },
+                child: const Text("OK"),
+              )
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: $e")));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // --- NAVIGASI BOTTOM BAR ---
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
-
     if (index == 0) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const HomePage()),
-        (route) => false,
-      );
+      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const HomePage()), (r) => false);
     } else if (index == 1) {
-        // Pindah ke Halaman Jadwal
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const JadwalPage()),
-        );
-        return;
-    } 
-    else if (index == 3) {
-        // Pindah ke Halaman Notifikasi
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NotificationPage()),
-        );
-        return;
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const JadwalPage()));
+    } else if (index == 3) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const NotificationPage()));
+    } else if (index == 4) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
     }
-    else if (index == 4) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const ProfilePage()),
-      );
-    }
-    // TODO: Index 3 (Notification
   }
 
+  // Helper Fasilitas
   void _addFacility() {
     setState(() {
       _selectedFacilities.add({'name': _facilityOptions.first, 'qty': 1});
@@ -128,14 +169,11 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     return Scaffold(
       backgroundColor: pageBackgroundColor,
       appBar: AppBar(
-        title: const Text(
-          "Peminjaman", // Judul AppBar sesuai gambar
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
+        title: const Text("Peminjaman", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: false, // Hilangkan tombol back default
+        automaticallyImplyLeading: false,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -145,10 +183,7 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
             const SizedBox(height: 10),
             _buildHeader(),
             const SizedBox(height: 24),
-            
-            // Form Card Utama
             _buildFormCard(),
-            
             const SizedBox(height: 40),
           ],
         ),
@@ -161,46 +196,24 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Hi $_name!",
-          style: const TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
+        Text("Hi $_name !", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black)),
       ],
     );
   }
 
   Widget _buildFormCard() {
     return Container(
-      decoration: BoxDecoration(
-        color: cardColor, // Latar oranye terang
-        borderRadius: BorderRadius.circular(20),
-        // border: Border.all(color: Colors.black, width: 1), // Opsional: border hitam tipis
-      ),
+      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(20)),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: Column(
           children: [
-            // Header Form "Form Peminjaman"
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              color: cardHeaderColor, // Warna Header Gelap
-              child: const Text(
-                "Form Peminjaman",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+              color: cardHeaderColor,
+              child: const Text("Form Peminjaman", textAlign: TextAlign.center, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
-
-            // Isi Form
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Form(
@@ -208,144 +221,136 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Data Diri (Statis)
                     _buildStaticInfoRow("Nama", _name),
                     const SizedBox(height: 12),
                     _buildStaticInfoRow("NIM", _nim),
                     const SizedBox(height: 12),
                     _buildStaticInfoRow("Status", _status),
-                    
                     const SizedBox(height: 20),
 
-                    // Input WhatsApp
                     _buildInputLabel("WhatsApp"),
                     const SizedBox(height: 4),
                     TextFormField(
                       controller: _whatsappController,
                       keyboardType: TextInputType.phone,
                       decoration: _inputDecoration(),
+                      validator: (val) => val!.isEmpty ? "Wajib diisi" : null,
                     ),
-
                     const SizedBox(height: 16),
 
-                    // Dropdown Ruangan
                     _buildInputLabel("Ruangan"),
                     const SizedBox(height: 4),
                     DropdownButtonFormField<String>(
                       value: _selectedRoom,
                       hint: const Text("Pilih Ruangan"),
                       decoration: _inputDecoration(),
-                      items: _roomList.map((String room) {
-                        return DropdownMenuItem<String>(
-                          value: room,
-                          child: Text(room),
-                        );
-                      }).toList(),
-                      onChanged: (newValue) {
-                        setState(() {
-                          _selectedRoom = newValue;
-                        });
-                      },
+                      items: _roomList.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+                      onChanged: (v) => setState(() => _selectedRoom = v),
+                      validator: (val) => val == null ? "Wajib dipilih" : null,
                     ),
-
                     const SizedBox(height: 16),
 
-                    // Dropdown Waktu Sesi
-                    _buildInputLabel("Waktu"),
+                    _buildInputLabel("Waktu (Sesi)"),
                     const SizedBox(height: 4),
                     DropdownButtonFormField<String>(
                       value: _selectedSession,
-                      hint: const Text("Pilih Sesi Waktu"),
+                      hint: const Text("Pilih Sesi"),
                       decoration: _inputDecoration(),
-                      items: _sessionList.map((String session) {
-                        return DropdownMenuItem<String>(
-                          value: session,
-                          child: Text(session),
-                        );
-                      }).toList(),
-                      onChanged: (newValue) {
-                        setState(() {
-                          _selectedSession = newValue;
-                        });
-                      },
-                      validator: (value) => value == null ? 'Sesi waktu tidak boleh kosong' : null,
+                      items: _sessionList.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 14)))).toList(),
+                      onChanged: (v) => setState(() => _selectedSession = v),
+                      validator: (val) => val == null ? "Wajib dipilih" : null,
                     ),
-
                     const SizedBox(height: 16),
 
-                    // Switch untuk meminjam fasilitas
-                    _buildToggleFacility(),
-
-                    // --- BAGIAN FASILITAS (IMPROVISASI) ---
-                    if (_isBorrowingFacilities)
-                      _buildFacilitySection(),
-                    // ---------------------------------------
-
-                    const SizedBox(height: 30),
-
-                    // Disclaimer Text
-                    const Text(
-                      "Dengan ini saya akan mengikuti seluruh aturan yang berlaku sebagai mana yang telah terlampir pada halaman Aturan !!!",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                    // Switch Fasilitas
+                    Container(
+                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(10)),
+                      child: SwitchListTile(
+                        title: const Text("Pinjam Fasilitas Tambahan?", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                        value: _isBorrowingFacilities,
+                        activeColor: cardHeaderColor,
+                        onChanged: (v) => setState(() => _isBorrowingFacilities = v),
                       ),
-                      textAlign: TextAlign.justify,
                     ),
 
+                    // Tampilkan jika switch ON
+                    if (_isBorrowingFacilities) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildInputLabel("Fasilitas"),
+                          InkWell(
+                            onTap: _addFacility,
+                            child: const Row(children: [Icon(Icons.add_circle, size: 16), SizedBox(width: 4), Text("Tambah Alat", style: TextStyle(fontWeight: FontWeight.bold))]),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _selectedFacilities.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: DropdownButtonFormField<String>(
+                                    value: _selectedFacilities[index]['name'],
+                                    isDense: true,
+                                    decoration: _inputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                                    items: _facilityOptions.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+                                    onChanged: (v) => setState(() => _selectedFacilities[index]['name'] = v),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  width: 60,
+                                  child: TextFormField(
+                                    initialValue: _selectedFacilities[index]['qty'].toString(),
+                                    keyboardType: TextInputType.number,
+                                    textAlign: TextAlign.center,
+                                    decoration: _inputDecoration(contentPadding: const EdgeInsets.symmetric(vertical: 12)),
+                                    onChanged: (v) => _selectedFacilities[index]['qty'] = int.tryParse(v) ?? 1,
+                                  ),
+                                ),
+                                if (_selectedFacilities.length > 1)
+                                  IconButton(
+                                    icon: const Icon(Icons.cancel, color: Colors.red),
+                                    onPressed: () => _removeFacility(index),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+
+                    const SizedBox(height: 30),
+                    const Text("Dengan ini saya akan mengikuti seluruh aturan yang berlaku sebagai mana yang telah terlampir pada halaman Aturan !!!", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold), textAlign: TextAlign.justify),
                     const SizedBox(height: 30),
 
-                    // Tombol Aksi (Batal & Submit)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        // Tombol Batal (TextButton / OutlinedButton)
                         TextButton(
-                          onPressed: () {
-                            // Aksi Batal: Kembali ke halaman sebelumnya
-                            Navigator.pop(context);
-                          },
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.black87,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          ),
-                          child: const Text("Batal", style: TextStyle(fontWeight: FontWeight.bold)),
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text("Batal", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
                         ),
-                        
                         const SizedBox(width: 8),
-
-                        // Tombol Submit (ElevatedButton Putih)
                         ElevatedButton(
-                          onPressed: () {
-                            if (_formKey.currentState!.validate()) {
-                              // TODO: Proses Submit Data
-                              print("Submit: Room $_selectedRoom");
-                              print("Submit: Session $_selectedSession");
-                              if (_isBorrowingFacilities) {
-                                print("Fasilitas: $_selectedFacilities");
-                              } else {
-                                print("Tidak meminjam fasilitas.");
-                              }
-                              
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Peminjaman Berhasil Diajukan!")),
-                              );
-                            }
-                          },
+                          onPressed: _isLoading ? null : _submitRequest,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white, // Latar Putih
-                            foregroundColor: Colors.black, // Teks Hitam
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: const BorderSide(color: Colors.black, width: 1),
-                            ),
+                            backgroundColor: Colors.white, foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.black)),
                             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                           ),
-                          child: const Text(
-                            "Submit",
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
+                          child: _isLoading 
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                            : const Text("Submit", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
@@ -359,238 +364,49 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     );
   }
 
-  Widget _buildToggleFacility() {
-    return SwitchListTile(
-      title: const Text(
-        "Pinjam Fasilitas Tambahan",
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-      ),
-      value: _isBorrowingFacilities,
-      onChanged: (bool value) {
-        setState(() {
-          _isBorrowingFacilities = value;
-        });
-      },
-      activeColor: cardHeaderColor,
-      contentPadding: EdgeInsets.zero,
-    );
-  }
-
-  Widget _buildFacilitySection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _buildInputLabel("Fasilitas"),
-            // Tombol Tambah Fasilitas Kecil
-            InkWell(
-              onTap: _addFacility,
-              child: const Row(
-                children: [
-                  Icon(Icons.add_circle, size: 16, color: Colors.black87),
-                  SizedBox(width: 4),
-                  Text("Tambah Alat", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        
-        // List Fasilitas Dinamis
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _selectedFacilities.length,
-          itemBuilder: (context, index) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Row(
-                children: [
-                  // Dropdown Nama Alat (Flexible agar lebar)
-                  Expanded(
-                    flex: 3,
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedFacilities[index]['name'],
-                      isDense: true,
-                      decoration: _inputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-                      items: _facilityOptions.map((String facility) {
-                        return DropdownMenuItem<String>(
-                          value: facility,
-                          child: Text(facility, style: const TextStyle(fontSize: 14)),
-                        );
-                      }).toList(),
-                      onChanged: (newValue) {
-                        setState(() {
-                          _selectedFacilities[index]['name'] = newValue;
-                        });
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  
-                  // Input Jumlah (Kecil)
-                  SizedBox(
-                    width: 60,
-                    child: TextFormField(
-                      initialValue: _selectedFacilities[index]['qty'].toString(),
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      decoration: _inputDecoration(contentPadding: const EdgeInsets.symmetric(vertical: 12)),
-                      onChanged: (val) {
-                        _selectedFacilities[index]['qty'] = int.tryParse(val) ?? 1;
-                      },
-                    ),
-                  ),
-
-                  // Tombol Hapus (X) - Hanya muncul jika lebih dari 1 item
-                  if (_selectedFacilities.length > 1)
-                    IconButton(
-                      icon: const Icon(Icons.cancel, color: Colors.red),
-                      onPressed: () => _removeFacility(index),
-                    ),
-                ],
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
+  // Helpers
   Widget _buildStaticInfoRow(String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 100, // Lebar label tetap agar sejajar
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-          ),
-        ),
-        const Text(": ", style: TextStyle(fontWeight: FontWeight.bold)),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-          ),
-        ),
-      ],
-    );
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(width: 100, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500))),
+      const Text(": ", style: TextStyle(fontWeight: FontWeight.bold)),
+      Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
+    ]);
   }
 
-  // Helper: Label Input (WhatsApp :, Ruangan :, dll)
   Widget _buildInputLabel(String label) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 100, 
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-          ),
-        ),
-        const Text(": ", style: TextStyle(fontWeight: FontWeight.bold)),
-      ],
-    );
+    return Row(children: [
+      SizedBox(width: 100, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500))),
+      const Text(": ", style: TextStyle(fontWeight: FontWeight.bold)),
+    ]);
   }
 
   InputDecoration _inputDecoration({EdgeInsetsGeometry? contentPadding}) {
     return InputDecoration(
-      filled: true,
-      fillColor: inputFillColor, // Warna pink muda/krem
+      filled: true, fillColor: inputFillColor,
       contentPadding: contentPadding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.black54, width: 1),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.black54, width: 1),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.black, width: 1.5),
-      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.black54)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.black54)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.black, width: 1.5)),
     );
   }
 
-  // --- Bottom Nav Bar ---
   Widget _buildCustomBottomNav() {
     return Container(
       height: 80,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.3),
-            spreadRadius: 2,
-            blurRadius: 10,
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.3), spreadRadius: 2, blurRadius: 10)]),
       child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
+        borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
         child: BottomNavigationBar(
-          currentIndex: _selectedIndex, // Index 2 = Add/Form
-          onTap: _onItemTapped,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: Colors.black,
-          unselectedItemColor: Colors.grey[600],
-          showSelectedLabels: true,
-          showUnselectedLabels: true,
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
+          currentIndex: _selectedIndex, onTap: _onItemTapped, backgroundColor: Colors.transparent, elevation: 0, type: BottomNavigationBarType.fixed, selectedItemColor: Colors.black, unselectedItemColor: Colors.grey[600], showSelectedLabels: true, showUnselectedLabels: true,
           items: [
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              label: "Home",
-              activeIcon: Icon(Icons.home),
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.edit_note_outlined),
-              label: "Jadwal",
-              activeIcon: Icon(Icons.edit_note),
-            ),
-            BottomNavigationBarItem(
-              label: "",
-              icon: Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black,
-                ),
-                // Icon Plus yang aktif
-                child: const Icon(Icons.add, color: Colors.white, size: 30),
-              ),
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.notifications_none_outlined),
-              label: "Notification",
-              activeIcon: Icon(Icons.notifications),
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              label: "Profile",
-              activeIcon: Icon(Icons.person),
-            ),
+            const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: "Home", activeIcon: Icon(Icons.home)),
+            const BottomNavigationBarItem(icon: Icon(Icons.edit_note_outlined), label: "Jadwal", activeIcon: Icon(Icons.edit_note)),
+            BottomNavigationBarItem(label: "", icon: Container(width: 50, height: 50, decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black), child: const Icon(Icons.add, color: Colors.white, size: 30))),
+            const BottomNavigationBarItem(icon: Icon(Icons.notifications_none_outlined), label: "Notification", activeIcon: Icon(Icons.notifications)),
+            const BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: "Profile", activeIcon: Icon(Icons.person)),
           ],
         ),
       ),
     );
   }
-
 }

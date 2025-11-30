@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
-import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
 import 'package:pentas/pages/notification_page.dart';
 import 'package:pentas/service/auth_service.dart';
@@ -19,7 +18,7 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
   String _nim = "Memuat...";
   String _status = "Memuat...";
 
-  int _selectedIndex = 0;
+  int _selectedIndex = 2;
 
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _whatsappController = TextEditingController(text: "085342614904");
@@ -31,6 +30,18 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     "Ruangan Kelas 203",
     "Ruangan Kelas 204",
   ];
+
+  String? _selectedSession;
+  final List<String> _sessionList = [
+    "Sesi 1: 07.00-08.40",
+    "Sesi 2: 08.45-10.25",
+    "Sesi 3: 10.30-12.10",
+    "Sesi 4: 13.30-15.10",
+    "Sesi 5: 15.15-16.55",
+    "Sesi 6: 17.00-18.40",
+  ];
+
+  bool _isBorrowingFacilities = true;
 
   List<Map<String, dynamic>> _selectedFacilities = [
     {'name': 'Proyektor', 'qty': 1} // Default item pertama
@@ -59,9 +70,9 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     final userDetails = await _authService.getUserDetails();
     if (mounted && userDetails != null) {
       setState(() {
-        _name = userDetails['name'] ?? 'Data tidak ditemukan';
-        _nim = userDetails['nim'] ?? 'Data tidak ditemukan';
-        _status = userDetails['role'] ?? 'Data tidak ditemukan';
+        _name = userDetails['name']?.toString() ?? 'Data tidak ditemukan';
+        _nim = userDetails['nim']?.toString() ?? 'Data tidak ditemukan';
+        _status = userDetails['role']?.toString() ?? 'Data tidak ditemukan';
       });
     }
   }
@@ -239,83 +250,35 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
 
                     const SizedBox(height: 16),
 
-                    // --- BAGIAN FASILITAS (IMPROVISASI) ---
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildInputLabel("Fasilitas"),
-                        // Tombol Tambah Fasilitas Kecil
-                        InkWell(
-                          onTap: _addFacility,
-                          child: const Row(
-                            children: [
-                              Icon(Icons.add_circle, size: 16, color: Colors.black87),
-                              SizedBox(width: 4),
-                              Text("Tambah Alat", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    // Dropdown Waktu Sesi
+                    _buildInputLabel("Waktu"),
                     const SizedBox(height: 4),
-                    
-                    // List Fasilitas Dinamis
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _selectedFacilities.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Row(
-                            children: [
-                              // Dropdown Nama Alat (Flexible agar lebar)
-                              Expanded(
-                                flex: 3,
-                                child: DropdownButtonFormField<String>(
-                                  value: _selectedFacilities[index]['name'],
-                                  isDense: true,
-                                  decoration: _inputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-                                  items: _facilityOptions.map((String facility) {
-                                    return DropdownMenuItem<String>(
-                                      value: facility,
-                                      child: Text(facility, style: const TextStyle(fontSize: 14)),
-                                    );
-                                  }).toList(),
-                                  onChanged: (newValue) {
-                                    setState(() {
-                                      _selectedFacilities[index]['name'] = newValue;
-                                    });
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              
-                              // Input Jumlah (Kecil)
-                              SizedBox(
-                                width: 60,
-                                child: TextFormField(
-                                  initialValue: _selectedFacilities[index]['qty'].toString(),
-                                  keyboardType: TextInputType.number,
-                                  textAlign: TextAlign.center,
-                                  decoration: _inputDecoration(contentPadding: const EdgeInsets.symmetric(vertical: 12)),
-                                  onChanged: (val) {
-                                    _selectedFacilities[index]['qty'] = int.tryParse(val) ?? 1;
-                                  },
-                                ),
-                              ),
-
-                              // Tombol Hapus (X) - Hanya muncul jika lebih dari 1 item
-                              if (_selectedFacilities.length > 1)
-                                IconButton(
-                                  icon: const Icon(Icons.cancel, color: Colors.red),
-                                  onPressed: () => _removeFacility(index),
-                                ),
-                            ],
-                          ),
+                    DropdownButtonFormField<String>(
+                      value: _selectedSession,
+                      hint: const Text("Pilih Sesi Waktu"),
+                      decoration: _inputDecoration(),
+                      items: _sessionList.map((String session) {
+                        return DropdownMenuItem<String>(
+                          value: session,
+                          child: Text(session),
                         );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        setState(() {
+                          _selectedSession = newValue;
+                        });
                       },
+                      validator: (value) => value == null ? 'Sesi waktu tidak boleh kosong' : null,
                     ),
+
+                    const SizedBox(height: 16),
+
+                    // Switch untuk meminjam fasilitas
+                    _buildToggleFacility(),
+
+                    // --- BAGIAN FASILITAS (IMPROVISASI) ---
+                    if (_isBorrowingFacilities)
+                      _buildFacilitySection(),
                     // ---------------------------------------
 
                     const SizedBox(height: 30),
@@ -358,7 +321,12 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                             if (_formKey.currentState!.validate()) {
                               // TODO: Proses Submit Data
                               print("Submit: Room $_selectedRoom");
-                              print("Fasilitas: $_selectedFacilities");
+                              print("Submit: Session $_selectedSession");
+                              if (_isBorrowingFacilities) {
+                                print("Fasilitas: $_selectedFacilities");
+                              } else {
+                                print("Tidak meminjam fasilitas.");
+                              }
                               
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text("Peminjaman Berhasil Diajukan!")),
@@ -388,6 +356,107 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildToggleFacility() {
+    return SwitchListTile(
+      title: const Text(
+        "Pinjam Fasilitas Tambahan",
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      ),
+      value: _isBorrowingFacilities,
+      onChanged: (bool value) {
+        setState(() {
+          _isBorrowingFacilities = value;
+        });
+      },
+      activeColor: cardHeaderColor,
+      contentPadding: EdgeInsets.zero,
+    );
+  }
+
+  Widget _buildFacilitySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildInputLabel("Fasilitas"),
+            // Tombol Tambah Fasilitas Kecil
+            InkWell(
+              onTap: _addFacility,
+              child: const Row(
+                children: [
+                  Icon(Icons.add_circle, size: 16, color: Colors.black87),
+                  SizedBox(width: 4),
+                  Text("Tambah Alat", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        
+        // List Fasilitas Dinamis
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _selectedFacilities.length,
+          itemBuilder: (context, index) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                children: [
+                  // Dropdown Nama Alat (Flexible agar lebar)
+                  Expanded(
+                    flex: 3,
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedFacilities[index]['name'],
+                      isDense: true,
+                      decoration: _inputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                      items: _facilityOptions.map((String facility) {
+                        return DropdownMenuItem<String>(
+                          value: facility,
+                          child: Text(facility, style: const TextStyle(fontSize: 14)),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        setState(() {
+                          _selectedFacilities[index]['name'] = newValue;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  
+                  // Input Jumlah (Kecil)
+                  SizedBox(
+                    width: 60,
+                    child: TextFormField(
+                      initialValue: _selectedFacilities[index]['qty'].toString(),
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      decoration: _inputDecoration(contentPadding: const EdgeInsets.symmetric(vertical: 12)),
+                      onChanged: (val) {
+                        _selectedFacilities[index]['qty'] = int.tryParse(val) ?? 1;
+                      },
+                    ),
+                  ),
+
+                  // Tombol Hapus (X) - Hanya muncul jika lebih dari 1 item
+                  if (_selectedFacilities.length > 1)
+                    IconButton(
+                      icon: const Icon(Icons.cancel, color: Colors.red),
+                      onPressed: () => _removeFacility(index),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 

@@ -119,6 +119,8 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
         'hasTools': _isBorrowingFacilities,
         'status': 'pending', // Status awal
         'createdAt': FieldValue.serverTimestamp(), // Waktu server
+        'notificationRead': false, // Tambahkan ini
+        'notificationMessage': '', 
       });
 
       if (mounted) {

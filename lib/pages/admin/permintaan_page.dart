@@ -34,13 +34,20 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
 
   // Update Firebase
   void _updateStatus(String docId, String newStatus) {
+    String message = newStatus == 'accepted' 
+      ? "Peminjaman Ruangan di Setujui !" 
+      : "Peminjaman Ruangan di Tolak !";
+    
+    // Update status dan tambahkan notifikasi
     FirebaseFirestore.instance.collection('requests').doc(docId).update({
       'status': newStatus,
+      'notificationMessage': message, // Tambahkan pesan notifikasi
+      'notificationRead': false, // Set sebagai belum dibaca
+      'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    String message = newStatus == 'accepted' ? "Permintaan Disetujui ✅" : "Permintaan Ditolak ❌";
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message),
+      content: Text(newStatus == 'accepted' ? "Permintaan Disetujui ✅" : "Permintaan Ditolak ❌"),
       backgroundColor: newStatus == 'accepted' ? successColor : errorColor,
       duration: const Duration(seconds: 1),
       behavior: SnackBarBehavior.floating,

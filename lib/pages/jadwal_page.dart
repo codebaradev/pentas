@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
-// Ganti import ini jika path file Anda berbeda
 import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/notification_page.dart';
-import 'package:pentas/service/auth_service.dart';
 
 class JadwalPage extends StatefulWidget {
   const JadwalPage({super.key});
@@ -13,64 +14,80 @@ class JadwalPage extends StatefulWidget {
   State<JadwalPage> createState() => _JadwalPageState();
 }
 
-class _JadwalPageState extends State<JadwalPage> {
-  final AuthService _authService = AuthService();
-  String _username = "Pengguna"; // Nilai default
+class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateMixin {
+  int _selectedIndex = 1;
+  String _username = "Pengguna";
+  String _userId = "";
+  late TabController _tabController;
+
+  final Color pageBackgroundColor = const Color(0xFFFAFAFA);
+  final Color headerDarkColor = const Color(0xFF2A2A2A);
+  final Color rowLightColor = const Color(0xFFE0E0E0);
+  final Color myScheduleColor = const Color(0xFF4CAF50);
+  final Color otherScheduleColor = const Color(0xFF2196F3);
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadUserData();
   }
 
-  Future<void> _loadUserData() async {
-    final userDetails = await _authService.getUserDetails();
-    if (mounted && userDetails != null) {
-      setState(() {
-        _username = userDetails['name'] ?? "Pengguna";
-      });
-    }
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
-  int _selectedIndex = 1;
+  Future<void> _loadUserData() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        _userId = user.uid;
+      });
 
-  final Color pageBackgroundColor = const Color(0xFFFAFAFA);
-  final Color headerDarkColor = const Color(0xFF2A2A2A); // Warna header tabel (gelap)
-  final Color rowLightColor = const Color(0xFFE0E0E0); // Warna baris tabel (abu muda)
+      try {
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+            
+        if (userDoc.exists && mounted) {
+          setState(() {
+            _username = userDoc.get('name') ?? "Pengguna";
+          });
+        }
+      } catch (e) {
+        print("Error fetching user data: $e");
+      }
+    }
+  }
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
 
     if (index == 0) {
-      // Kembali ke Home
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const HomePage()),
         (route) => false,
       );
     } else if (index == 2) {
-      // Tombol Add -> Form Peminjaman
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
       );
-    } 
-    else if (index == 3) {
-        // Pindah ke Halaman Notifikasi
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NotificationPage()),
-        );
-        return;
-    }
-    else if (index == 4) {
-      // Profile
+    } else if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const NotificationPage()),
+      );
+    } else if (index == 4) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const ProfilePage()),
       );
     }
-    // TODO: Index 3 (Notification)
   }
 
   @override
@@ -85,22 +102,76 @@ class _JadwalPageState extends State<JadwalPage> {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: false, // Tidak ada tombol kembali di root nav
+        automaticallyImplyLeading: false,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 10),
-            // 1. Header "Hi Dasmae"
-            _buildHeader(),
-            const SizedBox(height: 24),
+            // Header Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Hi $_username!",
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Berikut jadwal peminjaman laboratorium",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
             
-            // 2. Tabel Jadwal
-            _buildScheduleTable(),
+            // Tab Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: headerDarkColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.grey[400],
+                  indicator: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFFF9A887),
+                  ),
+                  tabs: const [
+                    Tab(text: "Semua Jadwal"),
+                    Tab(text: "Jadwal Saya"),
+                  ],
+                ),
+              ),
+            ),
             
-            const SizedBox(height: 100), // Spasi bawah
+            const SizedBox(height: 16),
+            
+            // Tab Content - Gunakan Expanded agar tidak overflow
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  // Tab 1: Semua Jadwal yang sudah di-acc
+                  _buildAllScheduleContent(),
+                  // Tab 2: Jadwal saya saja
+                  _buildMyScheduleContent(),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -108,107 +179,341 @@ class _JadwalPageState extends State<JadwalPage> {
     );
   }
 
-  Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Hi $_username!",
-          style: const TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
+  Widget _buildAllScheduleContent() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('requests')
+          .where('status', isEqualTo: 'accepted')
+          .orderBy('date')
+          .orderBy('session')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildLoadingState();
+        }
+
+        if (snapshot.hasError) {
+          return _buildErrorState(snapshot.error.toString());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState("Belum ada jadwal yang disetujui");
+        }
+
+        final docs = snapshot.data!.docs;
+
+        // Kelompokkan berdasarkan tanggal
+        Map<String, List<QueryDocumentSnapshot>> groupedByDate = {};
+        
+        for (var doc in docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final date = data['date'] as Timestamp?;
+          
+          if (date != null) {
+            final dateStr = DateFormat('yyyy-MM-dd').format(date.toDate());
+            
+            if (!groupedByDate.containsKey(dateStr)) {
+              groupedByDate[dateStr] = [];
+            }
+            groupedByDate[dateStr]!.add(doc);
+          }
+        }
+
+        // Sort tanggal
+        final sortedDates = groupedByDate.keys.toList()..sort();
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Column(
+            children: [
+              for (var dateStr in sortedDates)
+                _buildDateScheduleCard(
+                  dateStr: dateStr,
+                  schedules: groupedByDate[dateStr]!,
+                  isMySchedule: false,
+                ),
+              const SizedBox(height: 20),
+            ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
-  Widget _buildScheduleTable() {
+  Widget _buildMyScheduleContent() {
+    if (_userId.isEmpty) {
+      return _buildLoadingState();
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('requests')
+          .where('userId', isEqualTo: _userId)
+          .where('status', isEqualTo: 'accepted')
+          .orderBy('date')
+          .orderBy('session')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildLoadingState();
+        }
+
+        if (snapshot.hasError) {
+          return _buildErrorState(snapshot.error.toString());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState("Anda belum memiliki jadwal yang disetujui");
+        }
+
+        final docs = snapshot.data!.docs;
+
+        // Kelompokkan berdasarkan tanggal
+        Map<String, List<QueryDocumentSnapshot>> groupedByDate = {};
+        
+        for (var doc in docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final date = data['date'] as Timestamp?;
+          
+          if (date != null) {
+            final dateStr = DateFormat('yyyy-MM-dd').format(date.toDate());
+            
+            if (!groupedByDate.containsKey(dateStr)) {
+              groupedByDate[dateStr] = [];
+            }
+            groupedByDate[dateStr]!.add(doc);
+          }
+        }
+
+        // Sort tanggal
+        final sortedDates = groupedByDate.keys.toList()..sort();
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Column(
+            children: [
+              for (var dateStr in sortedDates)
+                _buildDateScheduleCard(
+                  dateStr: dateStr,
+                  schedules: groupedByDate[dateStr]!,
+                  isMySchedule: true,
+                ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDateScheduleCard({
+    required String dateStr,
+    required List<QueryDocumentSnapshot> schedules,
+    required bool isMySchedule,
+  }) {
+    final date = DateTime.parse(dateStr);
+    final formattedDate = DateFormat('EEEE, d MMMM y', 'id_ID').format(date);
+    
     return Container(
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: headerDarkColor, // Latar belakang utama gelap
-        borderRadius: BorderRadius.circular(20),
+        color: headerDarkColor,
+        borderRadius: BorderRadius.circular(15),
       ),
-      // ClipRRect agar anak-anaknya tidak keluar dari radius border
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          children: [
-            // --- Bagian Header "Jadwal Laboratorium" ---
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header dengan tanggal
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
               color: headerDarkColor,
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Jadwal Laboratorium",
-                    style: TextStyle(
-                      color: Color(0xFFF9A887), // Warna oranye teks
-                      fontSize: 20,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    formattedDate,
+                    style: const TextStyle(
+                      color: Color(0xFFF9A887),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isMySchedule ? myScheduleColor : Colors.grey[700],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    isMySchedule ? "Jadwal Saya" : "Semua Jadwal",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    "Kamis, 20 - Nov -2025",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
 
-            // --- Baris Jadwal 1 (Isi) ---
-            _buildScheduleRow("Ruangan 203", "08:45 - 10:30"),
-            
-            // --- Baris Jadwal Kosong (Placeholder) ---
-            // Tambahkan beberapa baris kosong untuk visual sesuai gambar
-            _buildEmptyRow(),
-            _buildEmptyRow(),
-            _buildEmptyRow(),
-
-            // --- Area Kosong Bawah (Hitam/Gelap) ---
-            // Sisa ruang di bawah diisi warna gelap agar sesuai desain
-            Container(
-              height: 200, // Tinggi area kosong bawah
-              color: headerDarkColor,
-            ),
-          ],
-        ),
+          // List jadwal untuk tanggal tersebut
+          Column(
+            children: [
+              for (int index = 0; index < schedules.length; index++)
+                _buildScheduleItem(
+                  doc: schedules[index],
+                  index: index,
+                  totalItems: schedules.length,
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildScheduleRow(String room, String time) {
+  Widget _buildScheduleItem({
+    required QueryDocumentSnapshot doc,
+    required int index,
+    required int totalItems,
+  }) {
+    final data = doc.data() as Map<String, dynamic>;
+    
+    final room = data['room'] ?? 'Ruangan';
+    final session = data['session'] ?? 'Sesi';
+    final userName = data['name'] ?? 'Pengguna';
+    final isMyRequest = data['userId'] == _userId;
+    
+    // Format waktu dari session (contoh: "Sesi 2: 08.45-10.25")
+    String timeText = session;
+    if (session.contains(':')) {
+      final parts = session.split(':');
+      if (parts.length > 1) {
+        timeText = parts[1].trim();
+      }
+    }
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: rowLightColor, // Abu-abu muda
-        border: const Border(
-          bottom: BorderSide(color: Colors.black, width: 1), // Garis pemisah hitam
+        color: rowLightColor,
+        border: Border(
+          bottom: index < totalItems - 1
+              ? const BorderSide(color: Colors.black54, width: 0.5)
+              : BorderSide.none,
         ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            room,
-            style: const TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  room,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.person_outline,
+                      size: 12,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        userName,
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontSize: 12,
+                          fontStyle: isMyRequest ? FontStyle.italic : FontStyle.normal,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.35,
+                ),
+                child: Text(
+                  timeText,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.right,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (isMyRequest)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: myScheduleColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: myScheduleColor, width: 1),
+                  ),
+                  child: Text(
+                    "Milik Anda",
+                    style: TextStyle(
+                      color: myScheduleColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            color: headerDarkColor,
+          ),
+          const SizedBox(height: 16),
           Text(
-            time,
-            style: const TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w500,
+            "Memuat jadwal...",
+            style: TextStyle(
+              color: headerDarkColor,
               fontSize: 14,
             ),
           ),
@@ -217,20 +522,93 @@ class _JadwalPageState extends State<JadwalPage> {
     );
   }
 
-  // Helper: Baris Jadwal Kosong
-  Widget _buildEmptyRow() {
-    return Container(
-      height: 45, // Tinggi baris kosong
-      decoration: BoxDecoration(
-        color: rowLightColor,
-        border: const Border(
-          bottom: BorderSide(color: Colors.black, width: 1),
+  Widget _buildErrorState(String error) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 50,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              "Terjadi kesalahan",
+              style: TextStyle(
+                color: headerDarkColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                error.length > 100 ? "${error.substring(0, 100)}..." : error,
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {});
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF9A887),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text("Coba Lagi"),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // --- Bottom Nav Bar ---
+  Widget _buildEmptyState(String message) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.calendar_today,
+              color: Colors.grey[400],
+              size: 80,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Silakan buat permintaan peminjaman terlebih dahulu",
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCustomBottomNav() {
     return Container(
       height: 80,
@@ -303,5 +681,4 @@ class _JadwalPageState extends State<JadwalPage> {
       ),
     );
   }
-
 }

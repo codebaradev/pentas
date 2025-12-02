@@ -1,6 +1,7 @@
+import 'dart:async'; // Tambahkan ini di bagian atas
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/services.dart'; // Untuk fitur copy text
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 class PermintaanPage extends StatefulWidget {
@@ -12,28 +13,131 @@ class PermintaanPage extends StatefulWidget {
 
 class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  Timer? _expiredScheduleTimer; // Tambahkan variabel untuk menyimpan timer
 
   // Palet Warna Modern
   final Color primaryColor = const Color(0xFF526D9D);
-  final Color backgroundColor = const Color(0xFFF5F7FA); // Abu-abu sangat muda
-  final Color pendingColor = const Color(0xFFFFA726); // Oranye
-  final Color successColor = const Color(0xFF66BB6A); // Hijau
-  final Color errorColor = const Color(0xFFEF5350);   // Merah
+  final Color backgroundColor = const Color(0xFFF5F7FA);
+  final Color pendingColor = const Color(0xFFFFA726);
+  final Color successColor = const Color(0xFF66BB6A);
+  final Color errorColor = const Color(0xFFEF5350);
+  final Color countdownColor = const Color(0xFFFF9800);
+  final Color expiredColor = const Color(0xFFF44336);
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    
+    // Auto-check expired schedules periodically
+    _checkExpiredSchedules();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _expiredScheduleTimer?.cancel(); // Cancel timer saat dispose
     super.dispose();
   }
 
+  // Auto-check for expired schedules every minute
+  void _checkExpiredSchedules() {
+    _expiredScheduleTimer = Timer.periodic(const Duration(minutes: 1), (timer) async {
+      await _removeExpiredSchedules();
+    });
+  }
+
+  // Remove expired schedules
+  Future<void> _removeExpiredSchedules() async {
+    try {
+      final now = DateTime.now();
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('requests')
+          .where('status', isEqualTo: 'accepted')
+          .get();
+
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final date = data['date'] as Timestamp?;
+        final session = data['session'] as String?;
+
+        if (date != null && session != null) {
+          final scheduleDate = date.toDate();
+          final endTime = _parseSessionEndTime(session, scheduleDate);
+          
+          // Jika waktu sudah lewat, hapus dari database
+          if (now.isAfter(endTime)) {
+            await FirebaseFirestore.instance
+                .collection('requests')
+                .doc(doc.id)
+                .delete();
+          }
+        }
+      }
+    } catch (e) {
+      print("Error removing expired schedules: $e");
+    }
+  }
+
+  // Parse session end time
+  DateTime _parseSessionEndTime(String session, DateTime scheduleDate) {
+    try {
+      if (session.contains(':') && session.contains('-')) {
+        final parts = session.split(':');
+        if (parts.length > 1) {
+          final timePart = parts[1].trim();
+          final timeRange = timePart.split('-');
+          if (timeRange.length == 2) {
+            final endTimeStr = timeRange[1].trim();
+            final endParts = endTimeStr.split('.');
+            
+            if (endParts.length == 2) {
+              final endHour = int.parse(endParts[0]);
+              final endMinute = int.parse(endParts[1]);
+              
+              return DateTime(
+                scheduleDate.year,
+                scheduleDate.month,
+                scheduleDate.day,
+                endHour,
+                endMinute,
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("Error parsing session time: $e");
+    }
+    
+    // Default: 2 jam setelah schedule date
+    return scheduleDate.add(const Duration(hours: 2));
+  }
+
+  // Calculate countdown for admin
+  String _calculateCountdown(DateTime endTime) {
+    final now = DateTime.now();
+    final difference = endTime.difference(now);
+    
+    if (difference.isNegative) {
+      return "Waktu Habis";
+    }
+    
+    final hours = difference.inHours;
+    final minutes = difference.inMinutes.remainder(60);
+    
+    if (hours > 24) {
+      final days = difference.inDays;
+      return "${days}h ${hours.remainder(24)}j";
+    } else if (hours > 0) {
+      return "${hours}j ${minutes}m";
+    } else {
+      return "${minutes}m";
+    }
+  }
+
   // Update Firebase
-  void _updateStatus(String docId, String newStatus) {
+  void _updateStatus(String docId, String newStatus, Map<String, dynamic> requestData) {
     String message = newStatus == 'accepted' 
       ? "Peminjaman Ruangan di Setujui !" 
       : "Peminjaman Ruangan di Tolak !";
@@ -41,15 +145,15 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
     // Update status dan tambahkan notifikasi
     FirebaseFirestore.instance.collection('requests').doc(docId).update({
       'status': newStatus,
-      'notificationMessage': message, // Tambahkan pesan notifikasi
-      'notificationRead': false, // Set sebagai belum dibaca
+      'notificationMessage': message,
+      'notificationRead': false,
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(newStatus == 'accepted' ? "Permintaan Disetujui ✅" : "Permintaan Ditolak ❌"),
       backgroundColor: newStatus == 'accepted' ? successColor : errorColor,
-      duration: const Duration(seconds: 1),
+      duration: const Duration(seconds: 2),
       behavior: SnackBarBehavior.floating,
     ));
   }
@@ -87,6 +191,9 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
   }
 
   Widget _buildRequestStream(String statusFilter) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('requests')
@@ -109,15 +216,35 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
 
         final docs = snapshot.data!.docs;
 
+        // Untuk tab "Disetujui", filter hanya jadwal hari ini dan kedepan
+        List<QueryDocumentSnapshot> filteredDocs = docs;
+        if (statusFilter == 'accepted') {
+          filteredDocs = docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final date = data['date'] as Timestamp?;
+            
+            if (date != null) {
+              final scheduleDate = date.toDate();
+              return scheduleDate.isAtSameMomentAs(todayStart) || 
+                     scheduleDate.isAfter(todayStart);
+            }
+            return false;
+          }).toList();
+        }
+
+        if (filteredDocs.isEmpty) {
+          return _buildEmptyState(statusFilter);
+        }
+
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: docs.length,
+          itemCount: filteredDocs.length,
           itemBuilder: (context, index) {
-            final doc = docs[index];
+            final doc = filteredDocs[index];
             final data = doc.data() as Map<String, dynamic>;
             final docId = doc.id;
 
-            return _buildRequestCard(data, docId);
+            return _buildRequestCard(data, docId, statusFilter);
           },
         );
       },
@@ -125,8 +252,9 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
   }
 
   // --- UI KARTU PERMINTAAN ---
-  Widget _buildRequestCard(Map<String, dynamic> item, String docId) {
+  Widget _buildRequestCard(Map<String, dynamic> item, String docId, String statusFilter) {
     bool isPending = item['status'] == 'pending';
+    bool isAccepted = item['status'] == 'accepted';
     
     // Data Parsing
     String name = item['name'] ?? 'Tanpa Nama';
@@ -140,13 +268,22 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
     // Parsing Tanggal
     Timestamp? dateTimestamp = item['date'] as Timestamp?;
     String formattedDate = 'Tanpa Tanggal';
+    DateTime? scheduleDate;
+    DateTime? endTime;
+    String countdownText = "";
+    
     if (dateTimestamp != null) {
-      DateTime date = dateTimestamp.toDate();
-      // Pastikan locale 'id_ID' sudah diregistrasi di main.dart
-      formattedDate = DateFormat('EEEE, d MMM y', 'id_ID').format(date);
+      scheduleDate = dateTimestamp.toDate();
+      formattedDate = DateFormat('EEEE, d MMM y', 'id_ID').format(scheduleDate!);
+      
+      // Parse end time untuk countdown (hanya untuk yang disetujui)
+      if (isAccepted && scheduleDate != null) {
+        endTime = _parseSessionEndTime(session, scheduleDate!);
+        countdownText = _calculateCountdown(endTime!);
+      }
     }
 
-    // Deteksi tipe peminjaman (Ruangan atau Alat)
+    // Deteksi tipe peminjaman
     bool hasTools = item['hasTools'] ?? false;
     String itemTitle = room;
     String itemSubtitle = "Fasilitas Ruangan";
@@ -251,6 +388,50 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
                       ),
                       const SizedBox(height: 2),
                       Text(itemSubtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      
+                      // Countdown untuk jadwal yang disetujui
+                      if (isAccepted && endTime != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: countdownText == "Waktu Habis" 
+                                  ? expiredColor.withOpacity(0.1)
+                                  : countdownColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: countdownText == "Waktu Habis" 
+                                    ? expiredColor 
+                                    : countdownColor,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.timer,
+                                  size: 12,
+                                  color: countdownText == "Waktu Habis" 
+                                      ? expiredColor 
+                                      : countdownColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  countdownText,
+                                  style: TextStyle(
+                                    color: countdownText == "Waktu Habis" 
+                                        ? expiredColor 
+                                        : countdownColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -266,7 +447,7 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => _showConfirmDialog(name, itemTitle, docId, 'rejected'),
+                      onPressed: () => _showConfirmDialog(name, itemTitle, docId, item, 'rejected'),
                       icon: const Icon(Icons.close, size: 18),
                       label: const Text("Tolak"),
                       style: OutlinedButton.styleFrom(
@@ -280,7 +461,7 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => _showConfirmDialog(name, itemTitle, docId, 'accepted'),
+                      onPressed: () => _showConfirmDialog(name, itemTitle, docId, item, 'accepted'),
                       icon: const Icon(Icons.check, size: 18),
                       label: const Text("Terima"),
                       style: ElevatedButton.styleFrom(
@@ -300,14 +481,14 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
-                color: item['status'] == 'accepted' ? successColor.withOpacity(0.1) : errorColor.withOpacity(0.1),
+                color: isAccepted ? successColor.withOpacity(0.1) : errorColor.withOpacity(0.1),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(15)),
               ),
               child: Center(
                 child: Text(
-                  item['status'] == 'accepted' ? "PERMINTAAN DISETUJUI" : "PERMINTAAN DITOLAK",
+                  isAccepted ? "PERMINTAAN DISETUJUI" : "PERMINTAAN DITOLAK",
                   style: TextStyle(
-                    color: item['status'] == 'accepted' ? successColor : errorColor,
+                    color: isAccepted ? successColor : errorColor,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                     letterSpacing: 1.0,
@@ -329,7 +510,7 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
       message = "Tidak ada permintaan baru";
       icon = Icons.mark_email_read_outlined;
     } else if (status == 'accepted') {
-      message = "Belum ada yang disetujui";
+      message = "Tidak ada jadwal yang sedang berlangsung";
       icon = Icons.check_circle_outline;
     } else {
       message = "Belum ada yang ditolak";
@@ -349,7 +530,7 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
   }
 
   // --- Dialog Konfirmasi ---
-  void _showConfirmDialog(String name, String item, String docId, String action) {
+  void _showConfirmDialog(String name, String item, String docId, Map<String, dynamic> requestData, String action) {
     bool isApprove = action == 'accepted';
     showDialog(
       context: context,
@@ -386,7 +567,7 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _updateStatus(docId, action);
+              _updateStatus(docId, action, requestData);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: isApprove ? successColor : errorColor,

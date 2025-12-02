@@ -1,4 +1,4 @@
-import 'dart:async'; // Tambahkan ini di bagian atas
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
@@ -13,7 +13,7 @@ class PermintaanPage extends StatefulWidget {
 
 class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  Timer? _expiredScheduleTimer; // Tambahkan variabel untuk menyimpan timer
+  Timer? _expiredScheduleTimer;
 
   // Palet Warna Modern
   final Color primaryColor = const Color(0xFF526D9D);
@@ -29,18 +29,18 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     
-    // Auto-check expired schedules periodically
+    // Auto-check expired schedules setiap menit
     _checkExpiredSchedules();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _expiredScheduleTimer?.cancel(); // Cancel timer saat dispose
+    _expiredScheduleTimer?.cancel();
     super.dispose();
   }
 
-  // Auto-check for expired schedules every minute
+  // Auto-check for expired schedules
   void _checkExpiredSchedules() {
     _expiredScheduleTimer = Timer.periodic(const Duration(minutes: 1), (timer) async {
       await _removeExpiredSchedules();
@@ -65,8 +65,8 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
           final scheduleDate = date.toDate();
           final endTime = _parseSessionEndTime(session, scheduleDate);
           
-          // Jika waktu sudah lewat, hapus dari database
-          if (now.isAfter(endTime)) {
+          // Jika waktu sudah lewat 5 menit, hapus dari database
+          if (now.isAfter(endTime.add(const Duration(minutes: 5)))) {
             await FirebaseFirestore.instance
                 .collection('requests')
                 .doc(doc.id)
@@ -341,7 +341,7 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: whatsapp));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Nomor WhatsApp disalin!"), duration: Duration(seconds: 1)),
+                      const SnackBar(content: Text("Nomor WhatsApp disalin!"), duration: const Duration(seconds: 1)),
                     );
                   },
                 ),

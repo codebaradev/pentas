@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Wajib
-import 'package:firebase_auth/firebase_auth.dart';     // Wajib
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
 import 'package:pentas/pages/notification_page.dart';
 import 'package:intl/intl.dart';
-// import 'package:pentas/pages/rules_page.dart'; // Optional jika ada link ke aturan
 
 class FormPeminjamanPage extends StatefulWidget {
   const FormPeminjamanPage({super.key});
@@ -21,14 +20,14 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
   String _nim = "Memuat...";
   String _status = "Memuat...";
 
-  int _selectedIndex = 2; // Tab tengah aktif
+  int _selectedIndex = 2;
 
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _whatsappController = TextEditingController(text: "085342614904");
   bool _isLoading = false;
 
   // Data Pilihan Form
-  DateTime? _selectedDate; // Variabel untuk tanggal
+  DateTime? _selectedDate;
   String? _selectedRoom;
   final List<String> _roomList = [
     "Ruangan Kelas 201", "Ruangan Kelas 202", "Ruangan Kelas 203", "Ruangan Kelas 204",
@@ -55,10 +54,19 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
   final Color inputFillColor = const Color(0xFFFFE0D6);
 
+  // STOK AWAL UNTUK VALIDASI
+  final Map<String, int> _initialToolStock = {
+    "Proyektor": 6,
+    "Terminal Kabel": 7,
+    "HDMI Kabel": 10,
+    "Spidol": 15,
+    "Lainnya": 999,
+  };
+
   @override
   void initState() {
     super.initState();
-    _fetchUserData(); // Ambil data user saat halaman dibuka
+    _fetchUserData();
   }
 
   // --- 1. AMBIL DATA USER DARI FIREBASE ---
@@ -71,7 +79,6 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
           setState(() {
             _name = userDoc.get('name') ?? 'Tanpa Nama';
             _nim = userDoc.get('nim') ?? '-'; 
-            // Mapping role ke status tampilan
             String role = userDoc.get('role') ?? 'mahasiswa';
             _status = role == 'dosen' || role == 'admin' ? 'Dosen/Admin' : 'Mahasiswa';
           });
@@ -82,7 +89,41 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     }
   }
 
-  // --- 2. LOGIKA SUBMIT KE FIREBASE ---
+  // FUNGSI PARSE WAKTU AKHIR SESI
+  DateTime _parseSessionEndTime(String session, DateTime scheduleDate) {
+    try {
+      if (session.contains(':') && session.contains('-')) {
+        final parts = session.split(':');
+        if (parts.length > 1) {
+          final timePart = parts[1].trim();
+          final timeRange = timePart.split('-');
+          if (timeRange.length == 2) {
+            final endTimeStr = timeRange[1].trim();
+            final endParts = endTimeStr.split('.');
+            
+            if (endParts.length == 2) {
+              final endHour = int.parse(endParts[0]);
+              final endMinute = int.parse(endParts[1]);
+              
+              return DateTime(
+                scheduleDate.year,
+                scheduleDate.month,
+                scheduleDate.day,
+                endHour,
+                endMinute,
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("Error parsing session time: $e");
+    }
+    
+    return scheduleDate.add(const Duration(hours: 2));
+  }
+
+  // --- 2. LOGIKA SUBMIT KE FIREBASE DENGAN VALIDASI REAL-TIME ---
   Future<void> _submitRequest() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -90,6 +131,101 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     if (_selectedRoom == null || _selectedSession == null || _selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Mohon lengkapi Tanggal, Ruangan, dan Sesi Waktu")),
+      );
+      return;
+    }
+
+    // **VALIDASI REAL-TIME: CEK KETERSEDIAAN**
+    try {
+      final now = DateTime.now();
+      
+      // 1. Cek apakah ruangan sudah dipesan di sesi yang sama (HANYA YANG MASIH AKTIF)
+      final roomCheckSnapshot = await FirebaseFirestore.instance
+          .collection('requests')
+          .where('room', isEqualTo: _selectedRoom)
+          .where('date', isEqualTo: Timestamp.fromDate(_selectedDate!))
+          .where('status', isEqualTo: 'accepted')
+          .get();
+
+      for (var doc in roomCheckSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final existingSession = data['session'] as String?;
+        final existingDate = data['date'] as Timestamp?;
+        
+        if (existingSession != null && existingSession == _selectedSession && existingDate != null) {
+          DateTime scheduleDate = existingDate.toDate();
+          DateTime endTime = _parseSessionEndTime(existingSession, scheduleDate);
+          
+          // Hanya tolak jika jadwal masih aktif
+          if (now.isBefore(endTime)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Ruangan $_selectedRoom sudah dipesan pada $existingSession"),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+        }
+      }
+
+      // 2. Cek stok alat (jika meminjam alat) - HANYA YANG MASIH AKTIF
+      if (_isBorrowingFacilities) {
+        // Ambil semua permintaan yang disetujui untuk tanggal yang sama
+        final toolCheckSnapshot = await FirebaseFirestore.instance
+            .collection('requests')
+            .where('date', isEqualTo: Timestamp.fromDate(_selectedDate!))
+            .where('hasTools', isEqualTo: true)
+            .where('status', isEqualTo: 'accepted')
+            .get();
+
+        // Hitung total alat yang sudah dipesan (HANYA YANG MASIH AKTIF)
+        Map<String, int> usedTools = {};
+        for (var doc in toolCheckSnapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final tools = data['tools'] as List<dynamic>?;
+          final session = data['session'] as String?;
+          final date = data['date'] as Timestamp?;
+          
+          // CEK APAKAH JADWAL MASIH AKTIF
+          if (tools != null && session != null && date != null) {
+            DateTime scheduleDate = date.toDate();
+            DateTime endTime = _parseSessionEndTime(session, scheduleDate);
+            
+            if (now.isBefore(endTime)) {
+              for (var tool in tools) {
+                String toolName = tool['name'];
+                int toolQty = tool['qty'];
+                usedTools[toolName] = (usedTools[toolName] ?? 0) + toolQty;
+              }
+            }
+          }
+        }
+
+        // Cek apakah stok mencukupi
+        for (var selectedTool in _selectedFacilities) {
+          String toolName = selectedTool['name'];
+          int requestedQty = selectedTool['qty'];
+          int availableQty = _initialToolStock[toolName]! - (usedTools[toolName] ?? 0);
+          
+          if (requestedQty > availableQty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Stok $toolName tidak mencukupi. Tersedia: $availableQty"),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      print("Error checking availability: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Gagal memeriksa ketersediaan. Silakan coba lagi."),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -107,24 +243,23 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
 
       // Kirim ke Firestore -> Collection 'requests'
       await FirebaseFirestore.instance.collection('requests').add({
-        'userId': user?.uid, // Simpan ID user untuk referensi
-        'name': _name,       // Simpan nama saat ini (snapshot)
+        'userId': user?.uid,
+        'name': _name,
         'nim': _nim,
         'role': _status,
         'whatsapp': _whatsappController.text,
-        'date': _selectedDate, // Tambahkan Tanggal
+        'date': Timestamp.fromDate(_selectedDate!),
         'room': _selectedRoom,
         'session': _selectedSession,
         'tools': toolsData,
         'hasTools': _isBorrowingFacilities,
-        'status': 'pending', // Status awal
-        'createdAt': FieldValue.serverTimestamp(), // Waktu server
-        'notificationRead': false, // Tambahkan ini
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+        'notificationRead': false,
         'notificationMessage': '', 
       });
 
       if (mounted) {
-        // Tampilkan Sukses
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -134,8 +269,8 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
             actions: [
               TextButton(
                 onPressed: () {
-                  Navigator.pop(context); // Tutup dialog
-                  Navigator.pop(context); // Kembali ke halaman sebelumnya
+                  Navigator.pop(context);
+                  Navigator.pop(context);
                 },
                 child: const Text("OK"),
               )
@@ -217,7 +352,7 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
               _buildHeader(),
               const SizedBox(height: 24),
               _buildFormCard(),
-              const SizedBox(height: 20), // Reduced bottom padding
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -389,9 +524,9 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                       ),
                     ],
 
-                    const SizedBox(height: 20), // Reduced spacing
+                    const SizedBox(height: 20),
                     const Text("Dengan ini saya akan mengikuti seluruh aturan yang berlaku sebagai mana yang telah terlampir pada halaman Aturan !!!", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold), textAlign: TextAlign.justify),
-                    const SizedBox(height: 20), // Reduced spacing
+                    const SizedBox(height: 20),
 
                     // Tombol Batal & Submit
                     Row(

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Wajib Import
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pentas/pages/login_page.dart';
 import 'package:pentas/service/auth_service.dart'; // Pastikan path benar
 import 'package:pentas/pages/admin/create_dosen_page.dart';
@@ -15,6 +15,7 @@ class AdminHomePage extends StatefulWidget {
 class _AdminHomePageState extends State<AdminHomePage> {
   final AuthService _authService = AuthService();
   String? _adminName;
+  // Timer? _refreshTimer; // <-- HAPUS INI
 
   final Color primaryColor = const Color(0xFF526D9D); 
   final Color cardColor = const Color(0xFFC8D6F5); 
@@ -30,8 +31,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
   // Data Realtime
   Map<String, int> _currentToolStock = {};
-  // Kita ubah struktur ini untuk menyimpan List Sesi yang sibuk per ruangan
-  // Contoh: "Ruangan Kelas 201": ["Sesi 1", "Sesi 3"]
   Map<String, List<String>> _roomBusySessions = {
     "Ruangan Kelas 201": [],
     "Ruangan Kelas 202": [],
@@ -44,7 +43,16 @@ class _AdminHomePageState extends State<AdminHomePage> {
     super.initState();
     _loadAdminDetails();
     _currentToolStock = Map.from(_initialToolStock);
+    
+    // --- HAPUS TIMER DI SINI ---
+    // StreamBuilder sudah cukup untuk update realtime.
   }
+
+  // @override
+  // void dispose() {
+  //   _refreshTimer?.cancel(); // <-- HAPUS INI
+  //   super.dispose();
+  // }
 
   Future<void> _loadAdminDetails() async {
     final userDetails = await _authService.getUserDetails();
@@ -55,7 +63,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
     }
   }
 
-  // Helper: Mendapatkan Sesi Saat Ini (untuk indikator realtime)
+  // ... (Sisa kode Helper, _processSnapshot, dll TETAP SAMA) ...
+
+  // SAYA SARANKAN COPY PASTE ULANG BAGIAN _processSnapshot KE BAWAH
+  // UNTUK MEMASTIKAN LOGIKANYA SAMA
+  
   String _getCurrentSession() {
     final now = TimeOfDay.now();
     final double time = now.hour + now.minute / 60.0;
@@ -69,12 +81,43 @@ class _AdminHomePageState extends State<AdminHomePage> {
     
     return "Diluar Jam";
   }
+  
+  DateTime _parseSessionEndTime(String session, DateTime scheduleDate) {
+      // ... (Kode parser waktu Anda tetap sama) ...
+      try {
+      if (session.contains(':') && session.contains('-')) {
+        final parts = session.split(':');
+        if (parts.length > 1) {
+          final timePart = parts[1].trim();
+          final timeRange = timePart.split('-');
+          if (timeRange.length == 2) {
+            final endTimeStr = timeRange[1].trim();
+            final endParts = endTimeStr.split('.');
+            
+            if (endParts.length == 2) {
+              final endHour = int.parse(endParts[0]);
+              final endMinute = int.parse(endParts[1]);
+              
+              return DateTime(
+                scheduleDate.year,
+                scheduleDate.month,
+                scheduleDate.day,
+                endHour,
+                endMinute,
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("Error parsing session time: $e");
+    }
+    return scheduleDate.add(const Duration(hours: 2));
+  }
 
-  // --- PROSES DATA FIREBASE ---
   void _processSnapshot(List<QueryDocumentSnapshot> docs) {
     Map<String, int> tempStock = Map.from(_initialToolStock);
     
-    // Reset data sesi sibuk
     Map<String, List<String>> tempBusySessions = {
       "Ruangan Kelas 201": [],
       "Ruangan Kelas 202": [],
@@ -82,41 +125,139 @@ class _AdminHomePageState extends State<AdminHomePage> {
       "Ruangan Kelas 204": [],
     };
 
+    final now = DateTime.now();
+
     for (var doc in docs) {
       Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+      final status = data['status'];
       
-      // 1. Hitung Stok Alat
-      if (data['hasTools'] == true && data['tools'] != null) {
-        List tools = data['tools'];
-        for (var tool in tools) {
-          String name = tool['name'];
-          int qty = tool['qty'];
-          if (tempStock.containsKey(name)) {
-            tempStock[name] = (tempStock[name]! - qty).clamp(0, 999);
+      if (status == 'accepted') {
+        if (data['hasTools'] == true && data['tools'] != null) {
+          List tools = data['tools'];
+          
+          Timestamp? dateTimestamp = data['date'] as Timestamp?;
+          String? session = data['session'];
+          
+          if (dateTimestamp != null && session != null) {
+            DateTime scheduleDate = dateTimestamp.toDate();
+            DateTime endTime = _parseSessionEndTime(session, scheduleDate);
+            
+            if (now.isBefore(endTime)) {
+              for (var tool in tools) {
+                String name = tool['name'];
+                int qty = tool['qty'];
+                if (tempStock.containsKey(name)) {
+                  tempStock[name] = (tempStock[name]! - qty).clamp(0, _initialToolStock[name]!);
+                }
+              }
+            }
           }
         }
-      }
 
-      // 2. Petakan Sesi Sibuk per Ruangan
-      String? roomName = data['room'];
-      String? sessionString = data['session']; // "Sesi 1: 07.00..."
-      
-      if (roomName != null && sessionString != null) {
-        String sessionName = sessionString.split(':')[0].trim(); // Ambil "Sesi 1"
+        String? roomName = data['room'];
+        String? sessionString = data['session'];
+        Timestamp? dateTimestamp = data['date'];
         
-        if (tempBusySessions.containsKey(roomName)) {
-          tempBusySessions[roomName]!.add(sessionName);
+        if (roomName != null && sessionString != null && dateTimestamp != null) {
+          DateTime scheduleDate = dateTimestamp.toDate();
+          DateTime endTime = _parseSessionEndTime(sessionString, scheduleDate);
+          
+          if (now.isBefore(endTime)) {
+            String sessionName = sessionString.split(':')[0].trim();
+            
+            if (tempBusySessions.containsKey(roomName)) {
+              tempBusySessions[roomName]!.add(sessionName);
+            }
+          }
         }
       }
     }
 
-    _currentToolStock = tempStock;
-    _roomBusySessions = tempBusySessions;
+    // --- PENTING: GUNAKAN microtask UNTUK MENGHINDARI ERROR SETSTATE ---
+    Future.microtask(() {
+        if (mounted) {
+          setState(() {
+            _currentToolStock = tempStock;
+            _roomBusySessions = tempBusySessions;
+          });
+        }
+    });
   }
+  
+  // ... (Sisa kode _showRoomDetails, build, _buildSidebar, dll SAMA)
+  
+  // Sertakan sisa fungsi build dan helper widget Anda di sini...
+  // Saya potong agar tidak terlalu panjang, tapi pastikan logic di atas diganti.
+  
+  @override
+  Widget build(BuildContext context) {
+      // ... (Sama seperti sebelumnya)
+       return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        backgroundColor: primaryColor,
+        elevation: 0,
+        leading: Builder(builder: (context) => IconButton(
+          icon: const Icon(Icons.menu, color: Colors.black, size: 30),
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        )),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(
+              child: Text(
+                _adminName != null ? "Hi $_adminName" : "Loading...",
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+          )
+        ],
+      ),
+      drawer: _buildSidebar(),
+      
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('requests')
+            // .where('status', isEqualTo: 'accepted') // Opsional filter di sini atau di process
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasData) {
+            // Panggil fungsi proses
+            _processSnapshot(snapshot.data!.docs);
+          }
 
-  // --- DIALOG DETAIL RUANGAN ---
-  void _showRoomDetails(String roomName, String roomCapacity) {
-    List<String> busySessions = _roomBusySessions["Ruangan Kelas $roomName"] ?? [];
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(8)),
+                  child: Center(child: Text("Waktu Sekarang: ${_getCurrentSession()}", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold))),
+                ),
+
+                const Center(child: Text("Laboratory Computer", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black))),
+                const SizedBox(height: 16),
+                _buildRoomGrid(),
+
+                const SizedBox(height: 30),
+
+                const Center(child: Text("Laboratory Tools", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black))),
+                const SizedBox(height: 16),
+                _buildToolList(),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  void _showRoomDetails(String roomNumber, String capacity) {
+    final roomName = "Ruangan Kelas $roomNumber";
+    List<String> busySessions = _roomBusySessions[roomName] ?? [];
     List<String> allSessions = [
       "Sesi 1 (07.00 - 08.40)",
       "Sesi 2 (08.45 - 10.25)",
@@ -141,11 +282,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("Detail Room $roomName", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF526D9D))),
+                  Text("Detail Room $roomNumber", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF526D9D))),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(8)),
-                    child: Text("Kapasitas: $roomCapacity", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    child: Text("Kapasitas: $capacity", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -200,76 +341,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
       },
     );
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: primaryColor,
-        elevation: 0,
-        leading: Builder(builder: (context) => IconButton(
-          icon: const Icon(Icons.menu, color: Colors.black, size: 30),
-          onPressed: () => Scaffold.of(context).openDrawer(),
-        )),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Center(
-              child: Text(
-                _adminName != null ? "Hi $_adminName" : "Loading...",
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ),
-          )
-        ],
-      ),
-      drawer: _buildSidebar(),
-      
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('requests')
-            .where('status', isEqualTo: 'accepted')
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            _processSnapshot(snapshot.data!.docs);
-          }
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(8)),
-                  child: Center(child: Text("Waktu Sekarang: ${_getCurrentSession()}", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold))),
-                ),
-
-                const Center(child: Text("Laboratory Computer", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black))),
-                const SizedBox(height: 4),
-                const Center(child: Text("(Ketuk ruangan untuk melihat detail sesi)", style: TextStyle(fontSize: 12, color: Colors.grey))),
-                const SizedBox(height: 16),
-                
-                _buildRoomGrid(),
-
-                const SizedBox(height: 30),
-
-                const Center(child: Text("Laboratory Tools", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black))),
-                const SizedBox(height: 16),
-                _buildToolList(),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ... (Kode _buildSidebar SAMA seperti sebelumnya) ...
-  Widget _buildSidebar() {
+  
+    Widget _buildSidebar() {
     return Drawer(
       backgroundColor: primaryColor,
       child: Column(
@@ -351,7 +424,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     bool isNowBusy = busySessions.contains(currentSession);
 
     return InkWell(
-      onTap: () => _showRoomDetails(roomNumber, capacity), // Buka Modal Detail
+      onTap: () => _showRoomDetails(roomNumber, capacity),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -386,7 +459,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
               ],
             ),
             const SizedBox(height: 12),
-            // Indikator Visual Status (Sesi Ini)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -412,6 +484,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
   Widget _buildToolList() {
     return Column(
       children: [
+        // Menggunakan data dinamis dari _currentToolStock
         _buildToolCard("Proyektor", "${_currentToolStock['Proyektor']}/${_initialToolStock['Proyektor']}", Icons.videocam_outlined),
         const SizedBox(height: 12),
         _buildToolCard("Terminal Kabel", "${_currentToolStock['Terminal Kabel']}/${_initialToolStock['Terminal Kabel']}", Icons.power_outlined),
@@ -424,6 +497,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   Widget _buildToolCard(String name, String stock, IconData icon) {
+      // ... Logic yang sama seperti kode Anda sebelumnya ...
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
       decoration: BoxDecoration(
@@ -448,6 +522,5 @@ class _AdminHomePageState extends State<AdminHomePage> {
       ),
     );
   }
-
-
+  
 }

@@ -6,6 +6,104 @@ import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/notification_page.dart';
+import 'dart:async';
+
+class _CountdownWidget extends StatefulWidget {
+  final DateTime endTime;
+  final Color countdownColor;
+  final Color expiredColor;
+
+  const _CountdownWidget({
+    super.key,
+    required this.endTime,
+    required this.countdownColor,
+    required this.expiredColor,
+  });
+
+  @override
+  State<_CountdownWidget> createState() => _CountdownWidgetState();
+}
+
+class _CountdownWidgetState extends State<_CountdownWidget> {
+  late Timer _timer;
+  late String _countdownText;
+
+  @override
+  void initState() {
+    super.initState();
+    _countdownText = _calculateCountdown(widget.endTime);
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        final newText = _calculateCountdown(widget.endTime);
+        if (newText != _countdownText) {
+          setState(() {
+            _countdownText = newText;
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  String _calculateCountdown(DateTime endTime) {
+    final now = DateTime.now();
+    final difference = endTime.difference(now);
+
+    if (difference.isNegative) {
+      if (_timer.isActive) {
+        _timer.cancel();
+      }
+      return "Waktu Habis";
+    }
+
+    final hours = difference.inHours;
+    final minutes = difference.inMinutes.remainder(60);
+
+    if (hours > 0) {
+      return "${hours}j ${minutes}m";
+    } else {
+      return "${minutes}m";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: widget.countdownColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: widget.countdownColor, width: 1.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.access_time,
+            size: 12,
+            color: widget.countdownColor,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _countdownText,
+            style: TextStyle(
+              color: _countdownText == "Waktu Habis"
+                  ? widget.expiredColor
+                  : widget.countdownColor,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class JadwalPage extends StatefulWidget {
   const JadwalPage({super.key});
@@ -19,12 +117,14 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
   String _username = "Pengguna";
   String _userId = "";
   late TabController _tabController;
+  Timer? _countdownTimer;
 
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
   final Color headerDarkColor = const Color(0xFF2A2A2A);
   final Color rowLightColor = const Color(0xFFE0E0E0);
   final Color myScheduleColor = const Color(0xFF4CAF50);
-  final Color otherScheduleColor = const Color(0xFF2196F3);
+  final Color countdownColor = const Color(0xFFFF9800);
+  final Color expiredColor = const Color(0xFFF44336);
 
   @override
   void initState() {
@@ -60,6 +160,105 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
       } catch (e) {
         print("Error fetching user data: $e");
       }
+    }
+  }
+
+  // Helper: Get current date at 00:00:00
+  DateTime getTodayStart() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  // Helper: Parse session time to DateTime
+  Map<String, dynamic> parseSessionTime(String session, DateTime scheduleDate) {
+    try {
+      // Format: "Sesi 1: 07.00-08.40"
+      if (session.contains(':') && session.contains('-')) {
+        final parts = session.split(':');
+        if (parts.length > 1) {
+          final timePart = parts[1].trim();
+          final timeRange = timePart.split('-');
+          if (timeRange.length == 2) {
+            final startTimeStr = timeRange[0].trim();
+            final endTimeStr = timeRange[1].trim();
+            
+            // Parse start time
+            final startParts = startTimeStr.split('.');
+            if (startParts.length == 2) {
+              final startHour = int.parse(startParts[0]);
+              final startMinute = int.parse(startParts[1]);
+              
+              final startDateTime = DateTime(
+                scheduleDate.year,
+                scheduleDate.month,
+                scheduleDate.day,
+                startHour,
+                startMinute,
+              );
+              
+              // Parse end time
+              final endParts = endTimeStr.split('.');
+              if (endParts.length == 2) {
+                final endHour = int.parse(endParts[0]);
+                final endMinute = int.parse(endParts[1]);
+                
+                final endDateTime = DateTime(
+                  scheduleDate.year,
+                  scheduleDate.month,
+                  scheduleDate.day,
+                  endHour,
+                  endMinute,
+                );
+                
+                return {
+                  'start': startDateTime,
+                  'end': endDateTime,
+                  'startStr': startTimeStr,
+                  'endStr': endTimeStr,
+                };
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("Error parsing session time: $e");
+    }
+    
+    // Default fallback
+    return {
+      'start': scheduleDate,
+      'end': scheduleDate.add(const Duration(hours: 2)),
+      'startStr': '00:00',
+      'endStr': '02:00',
+    };
+  }
+
+  // Helper: Check if schedule is upcoming or ongoing
+  String getScheduleStatus(Map<String, dynamic> timeInfo) {
+    final now = DateTime.now();
+    final start = timeInfo['start'] as DateTime;
+    final end = timeInfo['end'] as DateTime;
+    
+    if (now.isBefore(start)) {
+      return "Akan Datang";
+    } else if (now.isAfter(start) && now.isBefore(end)) {
+      return "Sedang Berlangsung";
+    } else {
+      return "Selesai";
+    }
+  }
+
+  Color getStatusColor(String status) {
+    switch (status) {
+      case "Akan Datang":
+        return Colors.blue;
+      case "Sedang Berlangsung":
+        return Colors.green;
+      case "Selesai":
+        return Colors.grey;
+      default:
+        return Colors.black;
     }
   }
 
@@ -180,6 +379,8 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
   }
 
   Widget _buildAllScheduleContent() {
+    final todayStart = getTodayStart();
+    
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('requests')
@@ -202,10 +403,28 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
 
         final docs = snapshot.data!.docs;
 
+        // Filter: hanya tanggal hari ini dan kedepan
+        final filteredDocs = docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final date = data['date'] as Timestamp?;
+          
+          if (date != null) {
+            final scheduleDate = date.toDate();
+            // Hanya tampilkan jika tanggal >= hari ini
+            return scheduleDate.isAtSameMomentAs(todayStart) || 
+                   scheduleDate.isAfter(todayStart);
+          }
+          return false;
+        }).toList();
+
+        if (filteredDocs.isEmpty) {
+          return _buildEmptyState("Tidak ada jadwal untuk hari ini dan seterusnya");
+        }
+
         // Kelompokkan berdasarkan tanggal
         Map<String, List<QueryDocumentSnapshot>> groupedByDate = {};
         
-        for (var doc in docs) {
+        for (var doc in filteredDocs) {
           final data = doc.data() as Map<String, dynamic>;
           final date = data['date'] as Timestamp?;
           
@@ -245,6 +464,8 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
       return _buildLoadingState();
     }
 
+    final todayStart = getTodayStart();
+    
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('requests')
@@ -268,10 +489,28 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
 
         final docs = snapshot.data!.docs;
 
+        // Filter: hanya tanggal hari ini dan kedepan
+        final filteredDocs = docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final date = data['date'] as Timestamp?;
+          
+          if (date != null) {
+            final scheduleDate = date.toDate();
+            // Hanya tampilkan jika tanggal >= hari ini
+            return scheduleDate.isAtSameMomentAs(todayStart) || 
+                   scheduleDate.isAfter(todayStart);
+          }
+          return false;
+        }).toList();
+
+        if (filteredDocs.isEmpty) {
+          return _buildEmptyState("Tidak ada jadwal Anda untuk hari ini dan seterusnya");
+        }
+
         // Kelompokkan berdasarkan tanggal
         Map<String, List<QueryDocumentSnapshot>> groupedByDate = {};
         
-        for (var doc in docs) {
+        for (var doc in filteredDocs) {
           final data = doc.data() as Map<String, dynamic>;
           final date = data['date'] as Timestamp?;
           
@@ -373,6 +612,7 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
                   doc: schedules[index],
                   index: index,
                   totalItems: schedules.length,
+                  isMySchedule: isMySchedule,
                 ),
             ],
           ),
@@ -385,22 +625,33 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
     required QueryDocumentSnapshot doc,
     required int index,
     required int totalItems,
+    required bool isMySchedule,
   }) {
     final data = doc.data() as Map<String, dynamic>;
     
     final room = data['room'] ?? 'Ruangan';
     final session = data['session'] ?? 'Sesi';
     final userName = data['name'] ?? 'Pengguna';
+    final dateTimestamp = data['date'] as Timestamp?;
     final isMyRequest = data['userId'] == _userId;
     
-    // Format waktu dari session (contoh: "Sesi 2: 08.45-10.25")
-    String timeText = session;
-    if (session.contains(':')) {
-      final parts = session.split(':');
-      if (parts.length > 1) {
-        timeText = parts[1].trim();
-      }
+    DateTime scheduleDate = DateTime.now();
+    if (dateTimestamp != null) {
+      scheduleDate = dateTimestamp.toDate();
     }
+    
+    // Parse waktu sesi
+    final timeInfo = parseSessionTime(session, scheduleDate);
+    final startTime = timeInfo['start'] as DateTime;
+    final endTime = timeInfo['end'] as DateTime;
+    final startStr = timeInfo['startStr'] as String;
+    final endStr = timeInfo['endStr'] as String;
+    
+    final scheduleStatus = getScheduleStatus(timeInfo);
+    final statusColor = getStatusColor(scheduleStatus);
+    
+    // Format waktu display
+    final timeText = "$startStr - $endStr";
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -453,6 +704,23 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
                     ),
                   ],
                 ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: statusColor, width: 1),
+                  ),
+                  child: Text(
+                    scheduleStatus,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -477,7 +745,16 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
                 ),
               ),
               const SizedBox(height: 4),
-              if (isMyRequest)
+              
+              // Countdown hanya untuk Jadwal Saya dan jadwal yang belum selesai
+              if (isMySchedule && scheduleStatus != "Selesai")
+                _CountdownWidget(
+                  endTime: endTime,
+                  countdownColor: countdownColor,
+                  expiredColor: expiredColor,
+                ),
+              
+              if (isMyRequest && !isMySchedule)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(

@@ -193,8 +193,8 @@ class _HomePageState extends State<HomePage> {
             ),
             Expanded(
               flex: 2,
-              child: Image.network(
-                'https://placehold.co/200x200/A3C6C4/000000?text=IMG',
+              child: Image.asset(
+                'assets/lab_ith.jpg',
                 height: 140,
                 fit: BoxFit.cover,
                 // Error handling sederhana jika gambar gagal dimuat

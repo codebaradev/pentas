@@ -186,10 +186,18 @@ class _KontakPageState extends State<KontakPage> {
               child: Container(
                 height: 140,
                 color: Colors.grey[300], 
-                child: Icon(
-                  Icons.image_not_supported_outlined, 
-                  color: Colors.grey[600],
-                  size: 40,
+                child: Image.asset(
+                  'assets/lab_ith.jpg',
+                  height: 140,
+                  fit: BoxFit.cover,
+                  // Error handling sederhana jika gambar gagal dimuat
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 140,
+                      color: Colors.grey[300],
+                      child: Icon(Icons.broken_image, color: Colors.grey[600]),
+                    );
+                  },
                 ),
               ),
             ),

@@ -8,6 +8,103 @@ import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/notification_page.dart';
 import 'dart:async';
 
+class _CountdownWidget extends StatefulWidget {
+  final DateTime endTime;
+  final Color countdownColor;
+  final Color expiredColor;
+
+  const _CountdownWidget({
+    super.key,
+    required this.endTime,
+    required this.countdownColor,
+    required this.expiredColor,
+  });
+
+  @override
+  State<_CountdownWidget> createState() => _CountdownWidgetState();
+}
+
+class _CountdownWidgetState extends State<_CountdownWidget> {
+  late Timer _timer;
+  late String _countdownText;
+
+  @override
+  void initState() {
+    super.initState();
+    _countdownText = _calculateCountdown(widget.endTime);
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        final newText = _calculateCountdown(widget.endTime);
+        if (newText != _countdownText) {
+          setState(() {
+            _countdownText = newText;
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  String _calculateCountdown(DateTime endTime) {
+    final now = DateTime.now();
+    final difference = endTime.difference(now);
+
+    if (difference.isNegative) {
+      if (_timer.isActive) {
+        _timer.cancel();
+      }
+      return "Waktu Habis";
+    }
+
+    final hours = difference.inHours;
+    final minutes = difference.inMinutes.remainder(60);
+
+    if (hours > 0) {
+      return "${hours}j ${minutes}m";
+    } else {
+      return "${minutes}m";
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: widget.countdownColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: widget.countdownColor, width: 1.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.access_time,
+            size: 12,
+            color: widget.countdownColor,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _countdownText,
+            style: TextStyle(
+              color: _countdownText == "Waktu Habis"
+                  ? widget.expiredColor
+                  : widget.countdownColor,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class JadwalPage extends StatefulWidget {
   const JadwalPage({super.key});
 
@@ -135,25 +232,6 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
       'startStr': '00:00',
       'endStr': '02:00',
     };
-  }
-
-  // Helper: Calculate countdown
-  String calculateCountdown(DateTime endTime) {
-    final now = DateTime.now();
-    final difference = endTime.difference(now);
-    
-    if (difference.isNegative) {
-      return "Waktu Habis";
-    }
-    
-    final hours = difference.inHours;
-    final minutes = difference.inMinutes.remainder(60);
-    
-    if (hours > 0) {
-      return "${hours}j ${minutes}m";
-    } else {
-      return "${minutes}m";
-    }
   }
 
   // Helper: Check if schedule is upcoming or ongoing
@@ -569,8 +647,6 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
     final startStr = timeInfo['startStr'] as String;
     final endStr = timeInfo['endStr'] as String;
     
-    // Hitung countdown
-    final countdownText = calculateCountdown(endTime);
     final scheduleStatus = getScheduleStatus(timeInfo);
     final statusColor = getStatusColor(scheduleStatus);
     
@@ -672,32 +748,10 @@ class _JadwalPageState extends State<JadwalPage> with SingleTickerProviderStateM
               
               // Countdown hanya untuk Jadwal Saya dan jadwal yang belum selesai
               if (isMySchedule && scheduleStatus != "Selesai")
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: countdownColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: countdownColor, width: 1.5),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 12,
-                        color: countdownColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        countdownText,
-                        style: TextStyle(
-                          color: countdownText == "Waktu Habis" ? expiredColor : countdownColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+                _CountdownWidget(
+                  endTime: endTime,
+                  countdownColor: countdownColor,
+                  expiredColor: expiredColor,
                 ),
               
               if (isMyRequest && !isMySchedule)

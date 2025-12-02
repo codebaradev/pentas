@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pentas/pages/home_page.dart';
+import 'package:pentas/pages/jadwal_page.dart';
 import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/form_page.dart';
@@ -153,7 +154,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
     if (index == 1) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const PeraturanPage()),
+        MaterialPageRoute(builder: (context) => const JadwalPage()),
       );
       return;
     }

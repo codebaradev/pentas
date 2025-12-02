@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pentas/pages/lab_page.dart';
 import 'package:pentas/pages/tools_page.dart';
 import 'package:pentas/pages/profile_page.dart';
@@ -9,8 +11,6 @@ import 'package:pentas/pages/jadwal_page.dart';
 import 'package:pentas/pages/notification_page.dart';
 import 'package:pentas/service/auth_service.dart';
 
-// Import Anda sudah benar
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -20,17 +20,148 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final AuthService _authService = AuthService();
-  String _username = "Pengguna"; // Default name
+  String _username = "Pengguna";
   int _selectedIndex = 0;
 
   final Color cardColor = const Color(0xFFF9A887);
   final Color cardBackgroundColor = const Color(0xFFFFF0ED);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
 
+  // Data real-time untuk card
+  int _availableRooms = 4;
+  int _availableTools = 15;
+  StreamSubscription<QuerySnapshot>? _subscription;
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _setupFirestoreListener();
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  void _setupFirestoreListener() {
+    _subscription = FirebaseFirestore.instance
+        .collection('requests')
+        .where('status', isEqualTo: 'accepted')
+        .snapshots()
+        .listen((snapshot) {
+      _updateHomeStats(snapshot.docs);
+    });
+  }
+
+  void _updateHomeStats(List<QueryDocumentSnapshot> docs) {
+    final now = DateTime.now();
+    int busyRooms = 0;
+    int usedTools = 0;
+
+    // Stok awal alat
+    final Map<String, int> initialToolStock = {
+      "Proyektor": 6,
+      "Terminal Cable": 7,
+      "HDMI Cable": 10,
+      "Spidol": 15,
+    };
+
+    Map<String, int> tempToolStock = Map.from(initialToolStock);
+
+    for (var doc in docs) {
+      Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+      
+      // Cek ruangan yang sibuk
+      Timestamp? dateTimestamp = data['date'];
+      String? sessionString = data['session'];
+      
+      if (dateTimestamp != null && sessionString != null) {
+        DateTime scheduleDate = dateTimestamp.toDate();
+        DateTime endTime = _parseSessionEndTime(sessionString, scheduleDate);
+        
+        if (now.isBefore(endTime)) {
+          String? roomName = data['room'];
+          if (roomName != null) {
+            busyRooms++;
+          }
+        }
+      }
+
+      // Cek alat yang digunakan
+      if (data['hasTools'] == true && data['tools'] != null) {
+        List tools = data['tools'];
+        Timestamp? dateTimestamp = data['date'];
+        String? session = data['session'];
+        
+        if (dateTimestamp != null && session != null) {
+          DateTime scheduleDate = dateTimestamp.toDate();
+          DateTime endTime = _parseSessionEndTime(session, scheduleDate);
+          
+          if (now.isBefore(endTime)) {
+            for (var tool in tools) {
+              String name = tool['name'];
+              int qty = tool['qty'];
+              
+              // Normalisasi nama alat
+              String normalizedName = name;
+              if (name == "Terminal Kabel") normalizedName = "Terminal Cable";
+              if (name == "HDMI Kabel") normalizedName = "HDMI Cable";
+              
+              if (tempToolStock.containsKey(normalizedName)) {
+                tempToolStock[normalizedName] = 
+                    (tempToolStock[normalizedName]! - qty)
+                        .clamp(0, initialToolStock[normalizedName]!);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Hitung total alat yang tersedia
+    int totalAvailableTools = tempToolStock.values.fold(0, (sum, stock) => sum + stock);
+    
+    // Update state
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _availableRooms = 4 - busyRooms.clamp(0, 4); // Total 4 ruangan
+          _availableTools = totalAvailableTools;
+        });
+      });
+    }
+  }
+
+  DateTime _parseSessionEndTime(String session, DateTime scheduleDate) {
+    try {
+      if (session.contains(':') && session.contains('-')) {
+        final parts = session.split(':');
+        if (parts.length > 1) {
+          final timePart = parts[1].trim();
+          final timeRange = timePart.split('-');
+          if (timeRange.length == 2) {
+            final endTimeStr = timeRange[1].trim();
+            final endParts = endTimeStr.split('.');
+            if (endParts.length == 2) {
+              final endHour = int.parse(endParts[0]);
+              final endMinute = int.parse(endParts[1]);
+              return DateTime(
+                scheduleDate.year,
+                scheduleDate.month,
+                scheduleDate.day,
+                endHour,
+                endMinute,
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("Error parsing session time: $e");
+    }
+    return scheduleDate.add(const Duration(hours: 2));
   }
 
   Future<void> _loadUserData() async {
@@ -43,46 +174,39 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onItemTapped(int index) {
-      if (index == 1) {
-        // Pindah ke Halaman Jadwal
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const JadwalPage()),
-        );
-        return;
-      }
-      if (index == 2) { 
-        // Pindah ke Halaman Form Peminjaman
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
-        );
-        return;
-      }
-
-      if (index == 3) {
-        // Pindah ke Halaman Notifikasi
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NotificationPage()),
-        );
-        return;
-      }
-      
-      // --- TAMBAHKAN LOGIKA NAVIGASI INI ---
-      if (index == 4) { // Index 4 adalah Profile
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ProfilePage()),
-        );
-        return; // Jangan setState karena kita pindah halaman
-      }
-
-      
-      setState(() {
-        _selectedIndex = index;
-      });
+    if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const JadwalPage()),
+      );
+      return;
     }
+    if (index == 2) { 
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
+      );
+      return;
+    }
+    if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const NotificationPage()),
+      );
+      return;
+    }
+    if (index == 4) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const ProfilePage()),
+      );
+      return;
+    }
+    
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +241,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const SizedBox(height: 16),
-            _buildMenuGrid(), // <-- PERBAIKAN UTAMA ADA DI FUNGSI INI
+            _buildMenuGrid(),
             const SizedBox(height: 20),
           ],
         ),
@@ -126,7 +250,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Widget Helper
   Widget _buildWelcomeHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,10 +262,10 @@ class _HomePageState extends State<HomePage> {
             color: Colors.black,
           ),
         ),
-        SizedBox(height: 4),
-        Text(
+        const SizedBox(height: 4),
+        const Text(
           "Jalani harimu dengan ceria",
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 16,
             color: Colors.black54,
           ),
@@ -151,7 +274,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Banner "Selamat Datang"
   Widget _buildWelcomeBanner() {
     return Container(
       decoration: BoxDecoration(
@@ -193,18 +315,22 @@ class _HomePageState extends State<HomePage> {
             ),
             Expanded(
               flex: 2,
-              child: Image.asset(
-                'assets/lab_ith.jpg',
+              child: Container(
                 height: 140,
-                fit: BoxFit.cover,
-                // Error handling sederhana jika gambar gagal dimuat
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 140,
-                    color: Colors.grey[300],
-                    child: Icon(Icons.broken_image, color: Colors.grey[600]),
-                  );
-                },
+                color: Colors.grey[300],
+                child: Image.asset(
+                  'assets/lab_ith.jpg',
+                  height: 140,
+                  fit: BoxFit.cover,
+                  // Error handling sederhana jika gambar gagal dimuat
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 140,
+                      color: Colors.grey[300],
+                      child: Icon(Icons.broken_image, color: Colors.grey[600]),
+                    );
+                  },
+                ),
               ),
             ),
           ],
@@ -213,62 +339,26 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // --- FUNGSI INI TELAH DIMODIFIKASI ---
   Widget _buildMenuGrid() {
     return GridView.count(
-      crossAxisCount: 2, // 2 kolom
-      crossAxisSpacing: 8, // Spasi horizontal
-      mainAxisSpacing: 8, // Spasi vertikal
+      crossAxisCount: 2,
+      crossAxisSpacing: 12, // Sedikit lebih besar
+      mainAxisSpacing: 12, // Sedikit lebih besar
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 0.95, // Aspek rasio dari perbaikan overflow
-
+      childAspectRatio: 1.0, // Dinaikkan dari 0.95 ke 1.0 untuk lebih tinggi
       children: [
-        // Item 1: Laboratorium
-        _buildGridItem(
-          date: "1 November 2025",
-          icon: Icons.computer_outlined,
-          title: "Laboratorium",
-          subtitle: "Available :",
-          count: "3 Rooms",
-          // --- INI ADALAH AKSI NAVIGASI YANG ANDA MINTA ---
-          onTap: () {
-            print("Navigasi ke Halaman Lab..."); // Aksi di konsol
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                // Menggunakan LabPage dari import Anda
-                builder: (context) => const LaboratoriumPage(),
-              ),
-            );
-          },
-          // --- AKHIR AKSI ---
-        ),
-
-        // Item 2: Peralatan
-        _buildGridItem(
-          date: "1 November 2025",
-          icon: Icons.construction_outlined,
-          title: "Peralatan",
-          subtitle: "Available :",
-          count: "8 Tools",
-          onTap: () {
-            // Aksi: Pindah ke Halaman Peralatan
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const PeralatanPage(),
-              ),
-            );
-          },
-        ),
-
-        // Item 3: Peraturan
+        // Card Laboratorium dengan info real-time
+        _buildLabCard(),
+        
+        // Card Peralatan dengan info real-time
+        _buildToolsCard(),
+        
+        // Card Peraturan
         _buildGridItemSimple(
           icon: Icons.description_outlined,
           title: "Peraturan\nPeminjaman",
           onTap: () {
-            // Aksi: Pindah ke Halaman Peraturan
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -277,14 +367,12 @@ class _HomePageState extends State<HomePage> {
             );
           },
         ),
-
-        // Item 4: Kontak
-        // Item 4: Kontak
+        
+        // Card Kontak
         _buildGridItemSimple(
           icon: Icons.phone_in_talk_outlined,
           title: "Kontak Petugas\ndan bantuan",
           onTap: () {
-            // Aksi: Pindah ke Halaman Kontak
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -297,57 +385,137 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // --- FUNGSI HELPER INI TELAH DIMODIFIKASI ---
-  // Helper untuk item grid (dengan info 'Available')
-  Widget _buildGridItem({
-    required String date,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String count,
-    VoidCallback? onTap, // <-- 1. Menambahkan parameter onTap
-  }) {
-    return Material( // <-- 2. Mengganti Container dengan Material
-      color: cardColor, // <-- 3. Pindahkan properti ke Material
+  // Card Laboratorium yang diperbarui
+  Widget _buildLabCard() {
+    String statusText;
+    Color statusColor;
+    
+    if (_availableRooms == 4) {
+      statusText = "Semua Tersedia";
+      statusColor = Colors.green;
+    } else if (_availableRooms == 0) {
+      statusText = "Penuh";
+      statusColor = Colors.red;
+    } else {
+      statusText = "${_availableRooms}/4 Tersedia";
+      statusColor = Colors.orange;
+    }
+
+    return Material(
+      color: cardColor,
       borderRadius: BorderRadius.circular(20),
-      child: InkWell( // <-- 4. Menambahkan InkWell untuk 'action'
-        onTap: onTap, // <-- 5. Menghubungkan onTap
-        borderRadius: BorderRadius.circular(20), // <-- 6. Agar ripple sesuai
-        child: Container( // <-- 7. Container asli
-          padding: const EdgeInsets.all(16),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const LaboratoriumPage()),
+          );
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(12), // Sedikit dikurangi
           decoration: BoxDecoration(
-            color: Colors.transparent, // <-- 8. Warna diatur oleh Material
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.black, width: 2),
           ),
-          child: Column( // Konten tetap sama
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                date,
-                style: const TextStyle(fontSize: 10, color: Colors.black54),
+              // Header dengan status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green[300]!, width: 1),
+                    ),
+                    child: Text(
+                      "LIVE",
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: statusColor, width: 1),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 4),
-              Icon(icon, size: 30, color: Colors.black),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black),
+              const SizedBox(height: 8),
+              
+              // Konten utama
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.computer_outlined, size: 28, color: Colors.black),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "Laboratorium",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Ruang komputer tersedia",
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.black54,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-              Text(
-                subtitle,
-                style: const TextStyle(fontSize: 11, color: Colors.black54),
-              ),
-              const Spacer(),
-              Text(
-                count,
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black),
+              
+              // Footer dengan info dan progress bar
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "$_availableRooms dari 4 Ruang",
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    height: 4, // Progress bar lebih tipis
+                    child: LinearProgressIndicator(
+                      value: _availableRooms / 4,
+                      backgroundColor: Colors.grey[300],
+                      valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -356,39 +524,178 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // --- FUNGSI HELPER INI TELAH DIMODIFIKASI ---
+  // Card Peralatan yang diperbarui
+  Widget _buildToolsCard() {
+    String statusText;
+    Color statusColor;
+    double availability = _availableTools / 38; // Total 38 alat (6+7+10+15)
+    
+    if (availability >= 0.7) {
+      statusText = "Banyak Tersedia";
+      statusColor = Colors.green;
+    } else if (availability >= 0.3) {
+      statusText = "Cukup Tersedia";
+      statusColor = Colors.orange;
+    } else {
+      statusText = "Terbatas";
+      statusColor = Colors.red;
+    }
+
+    return Material(
+      color: cardColor,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const PeralatanPage()),
+          );
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(12), // Sedikit dikurangi
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.black, width: 2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header dengan status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green[300]!, width: 1),
+                    ),
+                    child: Text(
+                      "LIVE",
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: statusColor, width: 1),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              
+              // Konten utama
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.construction_outlined, size: 28, color: Colors.black),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "Peralatan",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Proyektor, kabel, spidol",
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.black54,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Footer dengan info dan progress bar
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "$_availableTools dari 38 Alat",
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    height: 4, // Progress bar lebih tipis
+                    child: LinearProgressIndicator(
+                      value: availability,
+                      backgroundColor: Colors.grey[300],
+                      valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // Helper untuk item grid simpel ('Peraturan' & 'Kontak')
   Widget _buildGridItemSimple({
     required IconData icon,
     required String title,
-    VoidCallback? onTap, // <-- 1. Menambahkan parameter onTap
+    VoidCallback? onTap,
   }) {
-    return Material( // <-- 2. Mengganti Container dengan Material
-      color: cardColor, // <-- 3. Pindahkan properti ke Material
+    return Material(
+      color: cardColor,
       borderRadius: BorderRadius.circular(20),
-      child: InkWell( // <-- 4. Menambahkan InkWell untuk 'action'
-        onTap: onTap, // <-- 5. Menghubungkan onTap
-        borderRadius: BorderRadius.circular(20), // <-- 6. Agar ripple sesuai
-        child: Container( // <-- 7. Container asli
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.transparent, // <-- 8. Warna diatur oleh Material
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.black, width: 2),
           ),
-          child: Column( // Konten tetap sama
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 30, color: Colors.black),
-              const SizedBox(height: 12),
+              Icon(icon, size: 28, color: Colors.black), // Ukuran sedikit dikurangi
+              const SizedBox(height: 10), // Jarak sedikit dikurangi
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13, // Ukuran dikurangi sedikit
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
-                  height: 1.3,
+                  height: 1.2, // Line height dikurangi
                 ),
               ),
             ],

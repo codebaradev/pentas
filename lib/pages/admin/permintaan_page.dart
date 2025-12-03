@@ -292,10 +292,11 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
     if (hasTools) {
       List<dynamic> tools = item['tools'] ?? [];
       if (tools.isNotEmpty) {
-        String firstTool = tools[0]['name'];
-        int toolCount = tools.length;
-        itemTitle = "$room + $firstTool";
-        if (toolCount > 1) itemTitle += " (+${toolCount - 1})";
+        final toolsSummary = tools
+            .map((tool) =>
+                "${tool['name'] ?? 'Alat tidak diketahui'} (x${tool['qty'] ?? 1})")
+            .join(', ');
+        itemTitle = "$room + $toolsSummary";
         itemSubtitle = "Ruangan & Alat";
         itemIcon = Icons.devices_other;
       }

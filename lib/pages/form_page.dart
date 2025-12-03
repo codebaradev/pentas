@@ -468,59 +468,124 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                       ),
                     ),
 
-                    // List Alat (Jika switch ON)
+                    // List Alat (Jika switch ON) - BAGIAN YANG DIPERBAIKI
                     if (_isBorrowingFacilities) ...[
                       const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildInputLabel("Daftar Alat"),
-                          InkWell(
-                            onTap: _addFacility,
-                            child: const Row(children: [Icon(Icons.add_circle, size: 16), SizedBox(width: 4), Text("Tambah", style: TextStyle(fontWeight: FontWeight.bold))]),
+                          // Label dan tombol dalam row dengan overflow handling
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 8.0),
+                                  child: _buildInputLabel("Daftar Alat"),
+                                ),
+                              ),
+                              InkWell(
+                                onTap: _addFacility,
+                                child: Container(
+                                  constraints: const BoxConstraints(maxWidth: 80),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.add_circle, size: 16),
+                                      SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          "Tambah",
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          
+                          // List alat dengan perbaikan layout
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _selectedFacilities.length,
+                            separatorBuilder: (context, index) => const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.max,
+                                  children: [
+                                    // Dropdown untuk nama alat
+                                    Expanded(
+                                      flex: 4,
+                                      child: Container(
+                                        constraints: const BoxConstraints(minWidth: 120),
+                                        child: DropdownButtonFormField<String>(
+                                          value: _selectedFacilities[index]['name'],
+                                          isDense: true,
+                                          isExpanded: true,
+                                          decoration: _inputDecoration(
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                          ),
+                                          items: _facilityOptions
+                                              .map((f) => DropdownMenuItem(
+                                                    value: f,
+                                                    child: Text(
+                                                      f,
+                                                      style: const TextStyle(fontSize: 13),
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ))
+                                              .toList(),
+                                          onChanged: (v) => setState(() => _selectedFacilities[index]['name'] = v),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    
+                                    // Field untuk jumlah
+                                    SizedBox(
+                                      width: 55,
+                                      child: TextFormField(
+                                        initialValue: _selectedFacilities[index]['qty'].toString(),
+                                        keyboardType: TextInputType.number,
+                                        textAlign: TextAlign.center,
+                                        decoration: _inputDecoration(
+                                          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                                        ),
+                                        onChanged: (v) {
+                                          if (v.isNotEmpty) {
+                                            setState(() {
+                                              _selectedFacilities[index]['qty'] = int.tryParse(v) ?? 1;
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    
+                                    // Tombol hapus (jika lebih dari 1 alat)
+                                    if (_selectedFacilities.length > 1)
+                                      SizedBox(
+                                        width: 36,
+                                        child: IconButton(
+                                          icon: const Icon(Icons.cancel, size: 20, color: Colors.red),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(minWidth: 36),
+                                          onPressed: () => _removeFacility(index),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 4),
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _selectedFacilities.length,
-                        itemBuilder: (context, index) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: DropdownButtonFormField<String>(
-                                    value: _selectedFacilities[index]['name'],
-                                    isDense: true,
-                                    decoration: _inputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-                                    items: _facilityOptions.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
-                                    onChanged: (v) => setState(() => _selectedFacilities[index]['name'] = v),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                SizedBox(
-                                  width: 60,
-                                  child: TextFormField(
-                                    initialValue: _selectedFacilities[index]['qty'].toString(),
-                                    keyboardType: TextInputType.number,
-                                    textAlign: TextAlign.center,
-                                    decoration: _inputDecoration(contentPadding: const EdgeInsets.symmetric(vertical: 12)),
-                                    onChanged: (v) => _selectedFacilities[index]['qty'] = int.tryParse(v) ?? 1,
-                                  ),
-                                ),
-                                if (_selectedFacilities.length > 1)
-                                  IconButton(
-                                    icon: const Icon(Icons.cancel, color: Colors.red),
-                                    onPressed: () => _removeFacility(index),
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
                       ),
                     ],
 
@@ -599,7 +664,7 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
           items: [
             const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: "Home", activeIcon: Icon(Icons.home)),
             const BottomNavigationBarItem(icon: Icon(Icons.edit_note_outlined), label: "Jadwal", activeIcon: Icon(Icons.edit_note)),
-            BottomNavigationBarItem(label: "", icon: Container(width: 50, height: 50, decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black), child: const Icon(Icons.add, color: Colors.white, size: 30))),
+            BottomNavigationBarItem(label: "", icon: Container(width: 45, height: 45, decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black), child: const Icon(Icons.add, color: Colors.white, size: 30))),
             const BottomNavigationBarItem(icon: Icon(Icons.notifications_none_outlined), label: "Notification", activeIcon: Icon(Icons.notifications)),
             const BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: "Profile", activeIcon: Icon(Icons.person)),
           ],

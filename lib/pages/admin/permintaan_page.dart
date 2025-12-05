@@ -55,18 +55,21 @@ class _PermintaanPageState extends State<PermintaanPage>
   Future<void> _removeExpiredSchedules() async {
     try {
       final now = DateTime.now();
+      
+      // 1. Ambil semua request yang statusnya 'accepted'
       final querySnapshot = await FirebaseFirestore.instance
           .collection('requests')
           .where('status', isEqualTo: 'accepted')
           .get();
 
-      final toolsSnapshot =
-          await FirebaseFirestore.instance.collection('tools').get();
-      final toolsMap = {
+      // 2. Ambil Mapping Nama Alat ke ID Dokumen (Tidak perlu ambil quantity disini)
+      final toolsSnapshot = await FirebaseFirestore.instance.collection('tools').get();
+      final Map<String, String> toolIds = {
         for (var doc in toolsSnapshot.docs)
-          doc.data()['name']: {'id': doc.id, 'quantity': doc.data()['quantity']}
+          doc.data()['name']: doc.id // Map: Nama Alat -> ID Dokumen
       };
 
+      // 3. Loop setiap request
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final date = data['date'] as Timestamp?;
@@ -76,22 +79,38 @@ class _PermintaanPageState extends State<PermintaanPage>
           final scheduleDate = date.toDate();
           final endTime = _parseSessionEndTime(session, scheduleDate);
 
-          // Jika waktu sudah lewat 5 menit, hapus dari database
+          // Jika waktu sudah lewat 5 menit dari jadwal selesai
           if (now.isAfter(endTime.add(const Duration(minutes: 5)))) {
+            
+            // LOGIKA PENGEMBALIAN ALAT (FIXED)
             if (data['hasTools'] == true && data['tools'] != null) {
               List requestedTools = data['tools'];
+              
               for (var requestedTool in requestedTools) {
                 String toolName = requestedTool['name'];
-                int requestedQty = requestedTool['qty'];
+                // Pastikan qty dibaca sebagai integer
+                int requestedQty = int.parse(requestedTool['qty'].toString()); 
 
-                if (toolsMap.containsKey(toolName)) {
-                  String toolId = toolsMap[toolName]!['id'];
-                  int currentQty = toolsMap[toolName]!['quantity'];
-                  int newQty = currentQty + requestedQty;
-                  await _firebaseService.updateToolQuantity(toolId, newQty);
+                // Jika nama alat ada di database tools
+                if (toolIds.containsKey(toolName)) {
+                  String toolId = toolIds[toolName]!;
+                  
+                  // MENGGUNAKAN FIELDVALUE.INCREMENT
+                  // Ini langsung menambahkan jumlah ke database tanpa perlu baca stok lama
+                  // Sangat aman untuk menghindari data bentrok
+                  await FirebaseFirestore.instance
+                      .collection('tools')
+                      .doc(toolId)
+                      .update({
+                        'quantity': FieldValue.increment(requestedQty)
+                      });
+                      
+                  print("Mengembalikan $requestedQty $toolName ke stok.");
                 }
               }
             }
+
+            // Hapus request setelah alat dikembalikan
             await FirebaseFirestore.instance
                 .collection('requests')
                 .doc(doc.id)
@@ -162,11 +181,63 @@ class _PermintaanPageState extends State<PermintaanPage>
   }
 
   // Update Firebase
-  void _updateStatus(
-      String docId, String newStatus, Map<String, dynamic> requestData) {
+  Future<void> _updateStatus(
+      String docId, String newStatus, Map<String, dynamic> requestData) async {
     String message = newStatus == 'accepted'
         ? "Peminjaman Ruangan di Setujui !"
         : "Peminjaman Ruangan di Tolak !";
+
+    // Jika status disetujui dan ada peminjaman alat, kurangi stok
+    if (newStatus == 'accepted' &&
+        requestData['hasTools'] == true &&
+        requestData['tools'] != null) {
+      try {
+        final firestore = FirebaseFirestore.instance;
+        List requestedTools = requestData['tools'];
+
+        await firestore.runTransaction((transaction) async {
+          final toolsSnapshot = await firestore.collection('tools').get();
+          final toolIdMap = {
+            for (var doc in toolsSnapshot.docs) doc.data()['name']: doc.id
+          };
+
+          for (var requestedTool in requestedTools) {
+            final toolName = requestedTool['name'] as String?;
+            final requestedQty = int.tryParse(requestedTool['qty']?.toString() ?? '0') ?? 0;
+
+            if (toolName == null || !toolIdMap.containsKey(toolName) || requestedQty <= 0) {
+              continue;
+            }
+
+            final toolId = toolIdMap[toolName]!;
+            final toolRef = firestore.collection('tools').doc(toolId);
+            final toolDoc = await transaction.get(toolRef);
+
+            if (!toolDoc.exists) continue;
+
+            final toolData = toolDoc.data() as Map<String, dynamic>;
+            final currentQty = toolData['quantity'] as int? ?? 0;
+            
+            // This is the critical fix: Preserve total_quantity
+            final totalQty = toolData['total_quantity'] as int? ?? currentQty;
+
+            final newQty = currentQty - requestedQty;
+
+            transaction.update(toolRef, {
+              'quantity': newQty,
+              'total_quantity': totalQty, // Explicitly preserve the total quantity
+            });
+          }
+        });
+      } catch (e) {
+        print("Error updating tool quantity with transaction: $e");
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text("Gagal memperbarui stok alat!"),
+          backgroundColor: errorColor,
+        ));
+        return; 
+      }
+    }
 
     // Update status dan tambahkan notifikasi
     FirebaseFirestore.instance.collection('requests').doc(docId).update({

@@ -17,10 +17,9 @@ class FirebaseService {
     });
   }
 
-  // Update the quantity of an existing tool
-  Future<void> updateToolQuantity(String id, int newQuantity) {
+  Future<void> returnToolStock(String id, int amount) {
     return _firestore.collection('tools').doc(id).update({
-      'quantity': newQuantity,
+      'quantity': FieldValue.increment(amount),
     });
   }
 

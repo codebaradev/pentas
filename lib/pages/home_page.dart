@@ -10,6 +10,7 @@ import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
 import 'package:pentas/pages/notification_page.dart';
 import 'package:pentas/service/auth_service.dart';
+import 'package:pentas/service/firebase_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -20,6 +21,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final AuthService _authService = AuthService();
+  final FirebaseService _firebaseService = FirebaseService();
   String _username = "Pengguna";
   int _selectedIndex = 0;
 
@@ -29,58 +31,46 @@ class _HomePageState extends State<HomePage> {
 
   // Data real-time untuk card
   int _availableRooms = 4;
-  int _availableTools = 15;
-  StreamSubscription<QuerySnapshot>? _subscription;
+  StreamSubscription<QuerySnapshot>? _requestSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
-    _setupFirestoreListener();
+    _setupRequestFirestoreListener();
   }
 
   @override
   void dispose() {
-    _subscription?.cancel();
+    _requestSubscription?.cancel();
     super.dispose();
   }
 
-  void _setupFirestoreListener() {
-    _subscription = FirebaseFirestore.instance
+  void _setupRequestFirestoreListener() {
+    _requestSubscription = FirebaseFirestore.instance
         .collection('requests')
         .where('status', isEqualTo: 'accepted')
         .snapshots()
         .listen((snapshot) {
-      _updateHomeStats(snapshot.docs);
+      _updateRoomStats(snapshot.docs);
     });
   }
 
-  void _updateHomeStats(List<QueryDocumentSnapshot> docs) {
+  void _updateRoomStats(List<QueryDocumentSnapshot> docs) {
     final now = DateTime.now();
     int busyRooms = 0;
-    int usedTools = 0;
-
-    // Stok awal alat
-    final Map<String, int> initialToolStock = {
-      "Proyektor": 6,
-      "Terminal Cable": 7,
-      "HDMI Cable": 10,
-      "Spidol": 15,
-    };
-
-    Map<String, int> tempToolStock = Map.from(initialToolStock);
 
     for (var doc in docs) {
       Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-      
+
       // Cek ruangan yang sibuk
       Timestamp? dateTimestamp = data['date'];
       String? sessionString = data['session'];
-      
+
       if (dateTimestamp != null && sessionString != null) {
         DateTime scheduleDate = dateTimestamp.toDate();
         DateTime endTime = _parseSessionEndTime(sessionString, scheduleDate);
-        
+
         if (now.isBefore(endTime)) {
           String? roomName = data['room'];
           if (roomName != null) {
@@ -88,48 +78,10 @@ class _HomePageState extends State<HomePage> {
           }
         }
       }
-
-      // Cek alat yang digunakan
-      if (data['hasTools'] == true && data['tools'] != null) {
-        List tools = data['tools'];
-        Timestamp? dateTimestamp = data['date'];
-        String? session = data['session'];
-        
-        if (dateTimestamp != null && session != null) {
-          DateTime scheduleDate = dateTimestamp.toDate();
-          DateTime endTime = _parseSessionEndTime(session, scheduleDate);
-          
-          if (now.isBefore(endTime)) {
-            for (var tool in tools) {
-              String name = tool['name'];
-              int qty = tool['qty'];
-              
-              // Normalisasi nama alat
-              String normalizedName = name;
-              if (name == "Terminal Kabel") normalizedName = "Terminal Cable";
-              if (name == "HDMI Kabel") normalizedName = "HDMI Cable";
-              
-              if (tempToolStock.containsKey(normalizedName)) {
-                tempToolStock[normalizedName] = 
-                    (tempToolStock[normalizedName]! - qty)
-                        .clamp(0, initialToolStock[normalizedName]!);
-              }
-            }
-          }
-        }
-      }
     }
-
-    // Hitung total alat yang tersedia
-    int totalAvailableTools = tempToolStock.values.fold(0, (sum, stock) => sum + stock);
-    
-    // Update state
     if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        setState(() {
-          _availableRooms = 4 - busyRooms.clamp(0, 4); // Total 4 ruangan
-          _availableTools = totalAvailableTools;
-        });
+      setState(() {
+        _availableRooms = 4 - busyRooms.clamp(0, 4); // Total 4 ruangan
       });
     }
   }
@@ -181,7 +133,7 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
-    if (index == 2) { 
+    if (index == 2) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
@@ -202,7 +154,7 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
-    
+
     setState(() {
       _selectedIndex = index;
     });
@@ -350,10 +302,10 @@ class _HomePageState extends State<HomePage> {
       children: [
         // Card Laboratorium dengan info real-time
         _buildLabCard(),
-        
+
         // Card Peralatan dengan info real-time
         _buildToolsCard(),
-        
+
         // Card Peraturan
         _buildGridItemSimple(
           icon: Icons.description_outlined,
@@ -367,7 +319,7 @@ class _HomePageState extends State<HomePage> {
             );
           },
         ),
-        
+
         // Card Kontak
         _buildGridItemSimple(
           icon: Icons.phone_in_talk_outlined,
@@ -389,7 +341,7 @@ class _HomePageState extends State<HomePage> {
   Widget _buildLabCard() {
     String statusText;
     Color statusColor;
-    
+
     if (_availableRooms == 4) {
       statusText = "Semua Tersedia";
       statusColor = Colors.green;
@@ -397,7 +349,7 @@ class _HomePageState extends State<HomePage> {
       statusText = "Penuh";
       statusColor = Colors.red;
     } else {
-      statusText = "${_availableRooms}/4 Tersedia";
+      statusText = "$_availableRooms/4 Tersedia";
       statusColor = Colors.orange;
     }
 
@@ -462,7 +414,7 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
               const SizedBox(height: 8),
-              
+
               // Konten utama
               Expanded(
                 child: Column(
@@ -492,7 +444,7 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
-              
+
               // Footer dengan info dan progress bar
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,21 +478,172 @@ class _HomePageState extends State<HomePage> {
 
   // Card Peralatan yang diperbarui
   Widget _buildToolsCard() {
-    String statusText;
-    Color statusColor;
-    double availability = _availableTools / 38; // Total 38 alat (6+7+10+15)
-    
-    if (availability >= 0.7) {
-      statusText = "Banyak Tersedia";
-      statusColor = Colors.green;
-    } else if (availability >= 0.3) {
-      statusText = "Cukup Tersedia";
-      statusColor = Colors.orange;
-    } else {
-      statusText = "Terbatas";
-      statusColor = Colors.red;
-    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('tools') // Pastikan collection name sama
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          // Tampilkan loading atau default
+          return _buildToolsCardLoading();
+        }
 
+        final tools = snapshot.data!.docs;
+        int availableTools = 0;
+        int totalTools = 0;
+
+        for (var tool in tools) {
+          final toolData = tool.data() as Map<String, dynamic>;
+          final int currentQuantity = (toolData['quantity'] as int?) ?? 0;
+          final int totalQuantity = (toolData['total_quantity'] as int?) ?? currentQuantity;
+          
+          availableTools += currentQuantity;
+          totalTools += totalQuantity;
+        }
+
+        String statusText;
+        Color statusColor;
+        double availability = totalTools > 0 ? availableTools / totalTools : 0;
+
+        if (availability >= 0.7) {
+          statusText = "Banyak Tersedia";
+          statusColor = Colors.green;
+        } else if (availability >= 0.3) {
+          statusText = "Cukup Tersedia";
+          statusColor = Colors.orange;
+        } else {
+          statusText = "Terbatas";
+          statusColor = Colors.red;
+        }
+
+        return Material(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(20),
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PeralatanPage()),
+              );
+            },
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.black, width: 2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header dengan status
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green[300]!, width: 1),
+                        ),
+                        child: Text(
+                          "LIVE",
+                          style: TextStyle(
+                            fontSize: 8,
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: statusColor, width: 1),
+                        ),
+                        child: Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Konten utama
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.construction_outlined,
+                            size: 28, color: Colors.black),
+                        const SizedBox(height: 8),
+                        const Text(
+                          "Peralatan",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "Proyektor, kabel, spidol",
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.black54,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Footer dengan info dan progress bar
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "$availableTools dari $totalTools Alat",
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 4,
+                        child: LinearProgressIndicator(
+                          value: availability,
+                          backgroundColor: Colors.grey[300],
+                          valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Tambahkan fungsi loading untuk saat data belum tersedia
+  Widget _buildToolsCardLoading() {
     return Material(
       color: cardColor,
       borderRadius: BorderRadius.circular(20),
@@ -553,7 +656,7 @@ class _HomePageState extends State<HomePage> {
         },
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.all(12), // Sedikit dikurangi
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(20),
@@ -562,7 +665,7 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header dengan status
+              // Header dengan status loading
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -586,15 +689,15 @@ class _HomePageState extends State<HomePage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
+                      color: Colors.grey.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: statusColor, width: 1),
+                      border: Border.all(color: Colors.grey, width: 1),
                     ),
                     child: Text(
-                      statusText,
+                      "Memuat...",
                       style: TextStyle(
                         fontSize: 9,
-                        color: statusColor,
+                        color: Colors.grey,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -602,14 +705,15 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
               const SizedBox(height: 8),
-              
+
               // Konten utama
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.construction_outlined, size: 28, color: Colors.black),
+                    const Icon(Icons.construction_outlined,
+                        size: 28, color: Colors.black),
                     const SizedBox(height: 8),
                     const Text(
                       "Peralatan",
@@ -632,13 +736,13 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
-              
-              // Footer dengan info dan progress bar
+
+              // Footer dengan info loading
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "$_availableTools dari 38 Alat",
+                    "Memuat data...",
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -647,11 +751,11 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 6),
                   SizedBox(
-                    height: 4, // Progress bar lebih tipis
+                    height: 4,
                     child: LinearProgressIndicator(
-                      value: availability,
+                      value: null,
                       backgroundColor: Colors.grey[300],
-                      valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -687,8 +791,8 @@ class _HomePageState extends State<HomePage> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 28, color: Colors.black), // Ukuran sedikit dikurangi
-              const SizedBox(height: 10), // Jarak sedikit dikurangi
+              Icon(icon, size: 28, color: Colors.black),
+              const SizedBox(height: 10),
               Text(
                 title,
                 style: const TextStyle(

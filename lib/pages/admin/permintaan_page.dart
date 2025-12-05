@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:pentas/service/firebase_service.dart';
 
 class PermintaanPage extends StatefulWidget {
   const PermintaanPage({super.key});
@@ -11,9 +12,11 @@ class PermintaanPage extends StatefulWidget {
   State<PermintaanPage> createState() => _PermintaanPageState();
 }
 
-class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProviderStateMixin {
+class _PermintaanPageState extends State<PermintaanPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   Timer? _expiredScheduleTimer;
+  final FirebaseService _firebaseService = FirebaseService();
 
   // Palet Warna Modern
   final Color primaryColor = const Color(0xFF526D9D);
@@ -28,7 +31,7 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    
+
     // Auto-check expired schedules setiap menit
     _checkExpiredSchedules();
   }
@@ -42,7 +45,8 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
 
   // Auto-check for expired schedules
   void _checkExpiredSchedules() {
-    _expiredScheduleTimer = Timer.periodic(const Duration(minutes: 1), (timer) async {
+    _expiredScheduleTimer =
+        Timer.periodic(const Duration(minutes: 1), (timer) async {
       await _removeExpiredSchedules();
     });
   }
@@ -56,6 +60,13 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
           .where('status', isEqualTo: 'accepted')
           .get();
 
+      final toolsSnapshot =
+          await FirebaseFirestore.instance.collection('tools').get();
+      final toolsMap = {
+        for (var doc in toolsSnapshot.docs)
+          doc.data()['name']: {'id': doc.id, 'quantity': doc.data()['quantity']}
+      };
+
       for (var doc in querySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final date = data['date'] as Timestamp?;
@@ -64,9 +75,23 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
         if (date != null && session != null) {
           final scheduleDate = date.toDate();
           final endTime = _parseSessionEndTime(session, scheduleDate);
-          
+
           // Jika waktu sudah lewat 5 menit, hapus dari database
           if (now.isAfter(endTime.add(const Duration(minutes: 5)))) {
+            if (data['hasTools'] == true && data['tools'] != null) {
+              List requestedTools = data['tools'];
+              for (var requestedTool in requestedTools) {
+                String toolName = requestedTool['name'];
+                int requestedQty = requestedTool['qty'];
+
+                if (toolsMap.containsKey(toolName)) {
+                  String toolId = toolsMap[toolName]!['id'];
+                  int currentQty = toolsMap[toolName]!['quantity'];
+                  int newQty = currentQty + requestedQty;
+                  await _firebaseService.updateToolQuantity(toolId, newQty);
+                }
+              }
+            }
             await FirebaseFirestore.instance
                 .collection('requests')
                 .doc(doc.id)
@@ -90,11 +115,11 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
           if (timeRange.length == 2) {
             final endTimeStr = timeRange[1].trim();
             final endParts = endTimeStr.split('.');
-            
+
             if (endParts.length == 2) {
               final endHour = int.parse(endParts[0]);
               final endMinute = int.parse(endParts[1]);
-              
+
               return DateTime(
                 scheduleDate.year,
                 scheduleDate.month,
@@ -109,7 +134,7 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
     } catch (e) {
       print("Error parsing session time: $e");
     }
-    
+
     // Default: 2 jam setelah schedule date
     return scheduleDate.add(const Duration(hours: 2));
   }
@@ -118,14 +143,14 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
   String _calculateCountdown(DateTime endTime) {
     final now = DateTime.now();
     final difference = endTime.difference(now);
-    
+
     if (difference.isNegative) {
       return "Waktu Habis";
     }
-    
+
     final hours = difference.inHours;
     final minutes = difference.inMinutes.remainder(60);
-    
+
     if (hours > 24) {
       final days = difference.inDays;
       return "${days}h ${hours.remainder(24)}j";
@@ -137,11 +162,12 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
   }
 
   // Update Firebase
-  void _updateStatus(String docId, String newStatus, Map<String, dynamic> requestData) {
-    String message = newStatus == 'accepted' 
-      ? "Peminjaman Ruangan di Setujui !" 
-      : "Peminjaman Ruangan di Tolak !";
-    
+  void _updateStatus(
+      String docId, String newStatus, Map<String, dynamic> requestData) {
+    String message = newStatus == 'accepted'
+        ? "Peminjaman Ruangan di Setujui !"
+        : "Peminjaman Ruangan di Tolak !";
+
     // Update status dan tambahkan notifikasi
     FirebaseFirestore.instance.collection('requests').doc(docId).update({
       'status': newStatus,
@@ -151,7 +177,9 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
     });
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(newStatus == 'accepted' ? "Permintaan Disetujui ✅" : "Permintaan Ditolak ❌"),
+      content: Text(newStatus == 'accepted'
+          ? "Permintaan Disetujui ✅"
+          : "Permintaan Ditolak ❌"),
       backgroundColor: newStatus == 'accepted' ? successColor : errorColor,
       duration: const Duration(seconds: 2),
       behavior: SnackBarBehavior.floating,
@@ -163,7 +191,8 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text("Manajemen Permintaan", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("Manajemen Permintaan",
+            style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: primaryColor,
         elevation: 0,
         centerTitle: true,
@@ -193,17 +222,17 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
   Widget _buildRequestStream(String statusFilter) {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
-    
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('requests')
           .where('status', isEqualTo: statusFilter)
           .orderBy('createdAt', descending: true)
           .snapshots(),
-      
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator(color: primaryColor));
+          return Center(
+              child: CircularProgressIndicator(color: primaryColor));
         }
 
         if (snapshot.hasError) {
@@ -222,11 +251,11 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
           filteredDocs = docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
             final date = data['date'] as Timestamp?;
-            
+
             if (date != null) {
               final scheduleDate = date.toDate();
-              return scheduleDate.isAtSameMomentAs(todayStart) || 
-                     scheduleDate.isAfter(todayStart);
+              return scheduleDate.isAtSameMomentAs(todayStart) ||
+                  scheduleDate.isAfter(todayStart);
             }
             return false;
           }).toList();
@@ -252,10 +281,11 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
   }
 
   // --- UI KARTU PERMINTAAN ---
-  Widget _buildRequestCard(Map<String, dynamic> item, String docId, String statusFilter) {
+  Widget _buildRequestCard(
+      Map<String, dynamic> item, String docId, String statusFilter) {
     bool isPending = item['status'] == 'pending';
     bool isAccepted = item['status'] == 'accepted';
-    
+
     // Data Parsing
     String name = item['name'] ?? 'Tanpa Nama';
     String nim = item['nim'] ?? '-';
@@ -263,7 +293,8 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
     String whatsapp = item['whatsapp'] ?? '-';
     String room = item['room'] ?? '-';
     String session = item['session'] ?? '-';
-    String shortSession = session.length > 6 ? session.substring(0, 6) : session;
+    String shortSession =
+        session.length > 6 ? session.substring(0, 6) : session;
 
     // Parsing Tanggal
     Timestamp? dateTimestamp = item['date'] as Timestamp?;
@@ -271,11 +302,12 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
     DateTime? scheduleDate;
     DateTime? endTime;
     String countdownText = "";
-    
+
     if (dateTimestamp != null) {
       scheduleDate = dateTimestamp.toDate();
-      formattedDate = DateFormat('EEEE, d MMM y', 'id_ID').format(scheduleDate!);
-      
+      formattedDate =
+          DateFormat('EEEE, d MMM y', 'id_ID').format(scheduleDate!);
+
       // Parse end time untuk countdown (hanya untuk yang disetujui)
       if (isAccepted && scheduleDate != null) {
         endTime = _parseSessionEndTime(session, scheduleDate!);
@@ -313,7 +345,8 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(15)),
               border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
             child: Row(
@@ -322,7 +355,8 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
                   backgroundColor: primaryColor.withOpacity(0.1),
                   child: Text(
                     name.isNotEmpty ? name[0].toUpperCase() : "?",
-                    style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: primaryColor, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -330,8 +364,12 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                      Text("$role • $nim", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text(name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 15)),
+                      Text("$role • $nim",
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey[600])),
                     ],
                   ),
                 ),
@@ -342,7 +380,9 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: whatsapp));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Nomor WhatsApp disalin!"), duration: const Duration(seconds: 1)),
+                      const SnackBar(
+                          content: Text("Nomor WhatsApp disalin!"),
+                          duration: const Duration(seconds: 1)),
                     );
                   },
                 ),
@@ -370,40 +410,51 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(itemTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(itemTitle,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16)),
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey[600]),
+                          Icon(Icons.calendar_today_outlined,
+                              size: 14, color: Colors.grey[600]),
                           const SizedBox(width: 4),
-                          Text(formattedDate, style: TextStyle(fontSize: 13, color: Colors.grey[800])),
+                          Text(formattedDate,
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.grey[800])),
                         ],
                       ),
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                          Icon(Icons.access_time,
+                              size: 14, color: Colors.grey[600]),
                           const SizedBox(width: 4),
-                          Text("Sesi: $shortSession", style: TextStyle(fontSize: 13, color: Colors.grey[800])),
+                          Text("Sesi: $shortSession",
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.grey[800])),
                         ],
                       ),
                       const SizedBox(height: 2),
-                      Text(itemSubtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                      
+                      Text(itemSubtitle,
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.grey)),
+
                       // Countdown untuk jadwal yang disetujui
                       if (isAccepted && endTime != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: countdownText == "Waktu Habis" 
+                              color: countdownText == "Waktu Habis"
                                   ? expiredColor.withOpacity(0.1)
                                   : countdownColor.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: countdownText == "Waktu Habis" 
-                                    ? expiredColor 
+                                color: countdownText == "Waktu Habis"
+                                    ? expiredColor
                                     : countdownColor,
                                 width: 1,
                               ),
@@ -414,16 +465,16 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
                                 Icon(
                                   Icons.timer,
                                   size: 12,
-                                  color: countdownText == "Waktu Habis" 
-                                      ? expiredColor 
+                                  color: countdownText == "Waktu Habis"
+                                      ? expiredColor
                                       : countdownColor,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
                                   countdownText,
                                   style: TextStyle(
-                                    color: countdownText == "Waktu Habis" 
-                                        ? expiredColor 
+                                    color: countdownText == "Waktu Habis"
+                                        ? expiredColor
                                         : countdownColor,
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
@@ -441,28 +492,31 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
           ),
 
           // 3. Footer: Tombol Aksi / Status
-          if (isPending) 
+          if (isPending)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Row(
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => _showConfirmDialog(name, itemTitle, docId, item, 'rejected'),
+                      onPressed: () => _showConfirmDialog(
+                          name, itemTitle, docId, item, 'rejected'),
                       icon: const Icon(Icons.close, size: 18),
                       label: const Text("Tolak"),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: errorColor,
                         side: BorderSide(color: errorColor),
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => _showConfirmDialog(name, itemTitle, docId, item, 'accepted'),
+                      onPressed: () => _showConfirmDialog(
+                          name, itemTitle, docId, item, 'accepted'),
                       icon: const Icon(Icons.check, size: 18),
                       label: const Text("Terima"),
                       style: ElevatedButton.styleFrom(
@@ -470,7 +524,8 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                   ),
@@ -482,12 +537,17 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
-                color: isAccepted ? successColor.withOpacity(0.1) : errorColor.withOpacity(0.1),
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(15)),
+                color: isAccepted
+                    ? successColor.withOpacity(0.1)
+                    : errorColor.withOpacity(0.1),
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(15)),
               ),
               child: Center(
                 child: Text(
-                  isAccepted ? "PERMINTAAN DISETUJUI" : "PERMINTAAN DITOLAK",
+                  isAccepted
+                      ? "PERMINTAAN DISETUJUI"
+                      : "PERMINTAAN DITOLAK",
                   style: TextStyle(
                     color: isAccepted ? successColor : errorColor,
                     fontWeight: FontWeight.bold,
@@ -524,22 +584,26 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
         children: [
           Icon(icon, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          Text(message, style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+          Text(message,
+              style: TextStyle(color: Colors.grey[500], fontSize: 16)),
         ],
       ),
     );
   }
 
   // --- Dialog Konfirmasi ---
-  void _showConfirmDialog(String name, String item, String docId, Map<String, dynamic> requestData, String action) {
+  void _showConfirmDialog(String name, String item, String docId,
+      Map<String, dynamic> requestData, String action) {
     bool isApprove = action == 'accepted';
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: Row(
           children: [
-            Icon(isApprove ? Icons.check_circle : Icons.cancel, color: isApprove ? successColor : errorColor),
+            Icon(isApprove ? Icons.check_circle : Icons.cancel,
+                color: isApprove ? successColor : errorColor),
             const SizedBox(width: 10),
             Text(isApprove ? "Terima?" : "Tolak?"),
           ],
@@ -551,12 +615,18 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
             children: [
               TextSpan(
                 text: isApprove ? "menyetujui" : "menolak",
-                style: TextStyle(fontWeight: FontWeight.bold, color: isApprove ? successColor : errorColor),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isApprove ? successColor : errorColor),
               ),
               const TextSpan(text: " peminjaman:\n\n"),
-              TextSpan(text: item, style: const TextStyle(fontWeight: FontWeight.bold)),
+              TextSpan(
+                  text: item,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
               const TextSpan(text: "\noleh "),
-              TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.bold)),
+              TextSpan(
+                  text: name,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
         ),
@@ -572,9 +642,11 @@ class _PermintaanPageState extends State<PermintaanPage> with SingleTickerProvid
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: isApprove ? successColor : errorColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text("Konfirmasi", style: TextStyle(color: Colors.white)),
+            child: const Text("Konfirmasi",
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

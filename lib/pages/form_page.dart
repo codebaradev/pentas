@@ -258,17 +258,6 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
         'notificationMessage': '',
       });
 
-      if (_isBorrowingFacilities) {
-        for (var selectedTool in _selectedFacilities) {
-          String toolName = selectedTool['name'];
-          int requestedQty = selectedTool['qty'];
-          String toolId = _toolDetails[toolName]?['id'];
-          int currentQty = _toolDetails[toolName]?['quantity'];
-          int newQty = currentQty - requestedQty;
-          await _firebaseService.updateToolQuantity(toolId, newQty);
-        }
-      }
-
       if (mounted) {
         showDialog(
           context: context,

@@ -5,6 +5,7 @@ import 'package:pentas/service/auth_service.dart';
 import 'package:pentas/service/firebase_service.dart';
 import 'package:pentas/pages/admin/create_dosen_page.dart';
 import 'package:pentas/pages/admin/permintaan_page.dart';
+import 'dart:async';
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({super.key});
@@ -17,6 +18,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
   final AuthService _authService = AuthService();
   final FirebaseService _firebaseService = FirebaseService();
   String? _adminName;
+  Timer? _scheduleTimer;
 
   final Color primaryColor = const Color(0xFF526D9D);
   final Color cardColor = const Color(0xFFC8D6F5);
@@ -33,6 +35,88 @@ class _AdminHomePageState extends State<AdminHomePage> {
   void initState() {
     super.initState();
     _loadAdminDetails();
+    
+    // 2. Jalankan pengecekan otomatis saat halaman dibuka
+    _startAutoReturnCheck();
+  }
+
+  @override
+  void dispose() {
+    // 3. BERSIHKAN TIMER AGAR TIDAK MEMOR LEAK
+    _scheduleTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoReturnCheck() {
+    // Cek sekali di awal
+    _processExpiredRequests();
+    
+    // Cek ulang setiap 1 menit
+    _scheduleTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      _processExpiredRequests();
+    });
+  }
+
+  Future<void> _processExpiredRequests() async {
+    try {
+      final now = DateTime.now();
+
+      // Ambil semua request yang statusnya 'accepted'
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('requests')
+          .where('status', isEqualTo: 'accepted')
+          .get();
+
+      // Mapping Nama Alat -> ID Dokumen untuk efisiensi
+      final toolsSnapshot = await FirebaseFirestore.instance.collection('tools').get();
+      final Map<String, String> toolIds = {
+        for (var doc in toolsSnapshot.docs)
+          doc.data()['name']: doc.id 
+      };
+
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final session = data['session'] as String?;
+        final date = data['date'] as Timestamp?;
+
+        if (session != null && date != null) {
+          final scheduleDate = date.toDate();
+          final endTime = _parseSessionEndTime(session, scheduleDate);
+
+          // Jika waktu sekarang melewati (Waktu Selesai + 5 Menit Toleransi)
+          if (now.isAfter(endTime.add(const Duration(minutes: 5)))) {
+            
+            // --- KEMBALIKAN STOK ALAT ---
+            if (data['hasTools'] == true && data['tools'] != null) {
+              List requestedTools = data['tools'];
+              for (var toolItem in requestedTools) {
+                String toolName = toolItem['name'];
+                // Pastikan format angka aman
+                int qtyToReturn = int.tryParse(toolItem['qty'].toString()) ?? 0;
+
+                if (toolIds.containsKey(toolName) && qtyToReturn > 0) {
+                  String toolId = toolIds[toolName]!;
+                  
+                  // Panggil fungsi baru di FirebaseService
+                  await _firebaseService.returnToolStock(toolId, qtyToReturn);
+                  
+                  print("Auto-returned: $toolName ($qtyToReturn)");
+                }
+              }
+            }
+            // -----------------------------
+
+            // Hapus Permintaan karena sudah selesai
+            await FirebaseFirestore.instance
+                .collection('requests')
+                .doc(doc.id)
+                .delete();
+          }
+        }
+      }
+    } catch (e) {
+      print("Error checking expired requests: $e");
+    }
   }
 
   Future<void> _loadAdminDetails() async {
@@ -320,17 +404,45 @@ class _AdminHomePageState extends State<AdminHomePage> {
           IconButton(
             icon: const Icon(Icons.remove),
             onPressed: () {
-              if (quantity > 0) {
-                _firebaseService.updateToolQuantity(tool.id, quantity - 1);
-              }
+              final docRef = FirebaseFirestore.instance.collection('tools').doc(tool.id);
+              FirebaseFirestore.instance.runTransaction((transaction) async {
+                final snapshot = await transaction.get(docRef);
+                if (snapshot.exists) {
+                  final currentData = snapshot.data() as Map<String, dynamic>;
+                  final currentQuantity = currentData['quantity'] ?? 0;
+                  // Preserve total_quantity, fallback to current quantity if it's missing
+                  final currentTotalQuantity = currentData['total_quantity'] ?? currentQuantity;
+
+                  if (currentQuantity > 0) {
+                    transaction.update(docRef, {
+                      'quantity': currentQuantity - 1,
+                      'total_quantity': currentTotalQuantity // Explicitly preserve it
+                    });
+                  }
+                }
+              });
             },
           ),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () {
-              if (quantity < totalQuantity) {
-                _firebaseService.updateToolQuantity(tool.id, quantity + 1);
-              }
+              final docRef = FirebaseFirestore.instance.collection('tools').doc(tool.id);
+              FirebaseFirestore.instance.runTransaction((transaction) async {
+                final snapshot = await transaction.get(docRef);
+                if (snapshot.exists) {
+                  final currentData = snapshot.data() as Map<String, dynamic>;
+                  final currentQuantity = currentData['quantity'] ?? 0;
+                  // Preserve total_quantity, fallback to current quantity if it's missing
+                  final currentTotalQuantity = currentData['total_quantity'] ?? currentQuantity;
+
+                  if (currentQuantity < currentTotalQuantity) {
+                    transaction.update(docRef, {
+                      'quantity': currentQuantity + 1,
+                      'total_quantity': currentTotalQuantity // Explicitly preserve it
+                    });
+                  }
+                }
+              });
             },
           ),
         ],

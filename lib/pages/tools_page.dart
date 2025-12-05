@@ -1,11 +1,9 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
-import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/form_page.dart';
+import 'package:pentas/service/firebase_service.dart';
 
 class PeralatanPage extends StatefulWidget {
   const PeralatanPage({super.key});
@@ -16,132 +14,11 @@ class PeralatanPage extends StatefulWidget {
 
 class _PeralatanPageState extends State<PeralatanPage> {
   int _selectedIndex = 0;
-  StreamSubscription<QuerySnapshot>? _subscription;
+  final FirebaseService _firebaseService = FirebaseService();
 
   final Color cardColor = const Color(0xFFF9A887);
   final Color cardColorBackground = const Color(0xFFFFF0ED);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
-
-  // --- STOK AWAL ALAT (sama dengan admin) ---
-  final Map<String, int> _initialToolStock = {
-    "Proyektor": 6,
-    "Terminal Cable": 7,
-    "HDMI Cable": 10,
-    "Spidol": 15,
-  };
-
-  // Data Realtime
-  Map<String, int> _currentToolStock = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _currentToolStock = Map.from(_initialToolStock);
-    _setupFirestoreListener();
-  }
-
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    super.dispose();
-  }
-
-  void _setupFirestoreListener() {
-    _subscription = FirebaseFirestore.instance
-        .collection('requests')
-        .snapshots()
-        .listen((snapshot) {
-      _processSnapshot(snapshot.docs);
-    });
-  }
-
-  // Fungsi untuk mem-parsing waktu akhir sesi
-  DateTime _parseSessionEndTime(String session, DateTime scheduleDate) {
-    try {
-      if (session.contains(':') && session.contains('-')) {
-        final parts = session.split(':');
-        if (parts.length > 1) {
-          final timePart = parts[1].trim();
-          final timeRange = timePart.split('-');
-          if (timeRange.length == 2) {
-            final endTimeStr = timeRange[1].trim();
-            final endParts = endTimeStr.split('.');
-            if (endParts.length == 2) {
-              final endHour = int.parse(endParts[0]);
-              final endMinute = int.parse(endParts[1]);
-              return DateTime(
-                scheduleDate.year,
-                scheduleDate.month,
-                scheduleDate.day,
-                endHour,
-                endMinute,
-              );
-            }
-          }
-        }
-      }
-    } catch (e) {
-      print("Error parsing session time: $e");
-    }
-    return scheduleDate.add(const Duration(hours: 2));
-  }
-
-  // Fungsi untuk memproses snapshot dari Firestore
-  void _processSnapshot(List<QueryDocumentSnapshot> docs) {
-    Map<String, int> tempStock = Map.from(_initialToolStock);
-    final now = DateTime.now();
-
-    for (var doc in docs) {
-      Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-      final status = data['status'];
-
-      // Hanya proses request yang sudah diterima
-      if (status == 'accepted') {
-        if (data['hasTools'] == true && data['tools'] != null) {
-          List tools = data['tools'];
-
-          Timestamp? dateTimestamp = data['date'] as Timestamp?;
-          String? session = data['session'];
-
-          if (dateTimestamp != null && session != null) {
-            DateTime scheduleDate = dateTimestamp.toDate();
-            DateTime endTime = _parseSessionEndTime(session, scheduleDate);
-
-            // Cek apakah pemesanan alat masih aktif (belum berakhir)
-            if (now.isBefore(endTime)) {
-              for (var tool in tools) {
-                String name = tool['name'];
-                int qty = tool['qty'];
-                
-                // Normalisasi nama alat untuk kecocokan
-                String normalizedName = name;
-                if (name == "Terminal Kabel") {
-                  normalizedName = "Terminal Cable";
-                } else if (name == "HDMI Kabel") {
-                  normalizedName = "HDMI Cable";
-                }
-                
-                if (tempStock.containsKey(normalizedName)) {
-                  tempStock[normalizedName] =
-                      (tempStock[normalizedName]! - qty)
-                          .clamp(0, _initialToolStock[normalizedName]!);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Update state jika ada perubahan
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        setState(() {
-          _currentToolStock = tempStock;
-        });
-      });
-    }
-  }
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
@@ -298,7 +175,6 @@ class _PeralatanPageState extends State<PeralatanPage> {
                   'assets/lab_ith.jpg',
                   height: 140,
                   fit: BoxFit.cover,
-                  // Error handling sederhana jika gambar gagal dimuat
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       height: 140,
@@ -316,55 +192,36 @@ class _PeralatanPageState extends State<PeralatanPage> {
   }
 
   Widget _buildToolList() {
-    return Column(
-      children: [
-        _buildToolCard(
-          icon: Icons.videocam_outlined,
-          title: "Proyektor",
-          availability: "Available ${_currentToolStock['Proyektor'] ?? _initialToolStock['Proyektor'] ?? 0}/${_initialToolStock['Proyektor'] ?? 0}",
-          stock: _currentToolStock['Proyektor'] ?? _initialToolStock['Proyektor'] ?? 0,
-          maxStock: _initialToolStock['Proyektor'] ?? 0,
-        ),
-        const SizedBox(height: 16),
-        _buildToolCard(
-          icon: Icons.power_outlined,
-          title: "Terminal Cable",
-          availability: "Available ${_currentToolStock['Terminal Cable'] ?? _initialToolStock['Terminal Cable'] ?? 0}/${_initialToolStock['Terminal Cable'] ?? 0}",
-          stock: _currentToolStock['Terminal Cable'] ?? _initialToolStock['Terminal Cable'] ?? 0,
-          maxStock: _initialToolStock['Terminal Cable'] ?? 0,
-        ),
-        const SizedBox(height: 16),
-        _buildToolCard(
-          icon: Icons.settings_input_hdmi_outlined,
-          title: "HDMI Cable",
-          availability: "Available ${_currentToolStock['HDMI Cable'] ?? _initialToolStock['HDMI Cable'] ?? 0}/${_initialToolStock['HDMI Cable'] ?? 0}",
-          stock: _currentToolStock['HDMI Cable'] ?? _initialToolStock['HDMI Cable'] ?? 0,
-          maxStock: _initialToolStock['HDMI Cable'] ?? 0,
-        ),
-        const SizedBox(height: 16),
-        _buildToolCard(
-          icon: Icons.draw_outlined,
-          title: "Spidol",
-          availability: "Available ${_currentToolStock['Spidol'] ?? _initialToolStock['Spidol'] ?? 0}/${_initialToolStock['Spidol'] ?? 0}",
-          stock: _currentToolStock['Spidol'] ?? _initialToolStock['Spidol'] ?? 0,
-          maxStock: _initialToolStock['Spidol'] ?? 0,
-        ),
-      ],
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firebaseService.getTools(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final tools = snapshot.data!.docs;
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: tools.length,
+          itemBuilder: (context, index) {
+            final tool = tools[index];
+            return _buildToolCard(tool);
+          },
+        );
+      },
     );
   }
 
-  Widget _buildToolCard({
-    required IconData icon,
-    required String title,
-    required String availability,
-    required int stock,
-    required int maxStock,
-  }) {
-    // Tentukan warna berdasarkan ketersediaan
+  Widget _buildToolCard(DocumentSnapshot tool) {
+    final toolData = tool.data() as Map<String, dynamic>;
+    final String name = toolData['name'];
+    final int quantity = toolData['quantity'];
+    final int totalQuantity = toolData['total_quantity'] ?? quantity; // Fallback to quantity if total_quantity is not set
+
     Color statusColor;
-    if (stock == 0) {
+    if (quantity == 0) {
       statusColor = Colors.red;
-    } else if (stock <= maxStock * 0.3) {
+    } else if (quantity <= totalQuantity * 0.3) {
       statusColor = Colors.orange;
     } else {
       statusColor = Colors.green;
@@ -375,7 +232,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: () {
-          _showToolDetails(title, stock, maxStock);
+          _showToolDetails(name, quantity, totalQuantity);
         },
         borderRadius: BorderRadius.circular(20),
         child: Container(
@@ -387,14 +244,14 @@ class _PeralatanPageState extends State<PeralatanPage> {
           ),
           child: Row(
             children: [
-              Icon(icon, size: 40, color: Colors.black),
+              const Icon(Icons.build_outlined, size: 40, color: Colors.black),
               const SizedBox(width: 24),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
+                      name,
                       style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -402,13 +259,12 @@ class _PeralatanPageState extends State<PeralatanPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      availability,
+                      "Available $quantity/$totalQuantity",
                       style: const TextStyle(fontSize: 14, color: Colors.black87),
                     ),
                     const SizedBox(height: 8),
-                    // Progress bar untuk visualisasi ketersediaan
                     LinearProgressIndicator(
-                      value: stock / maxStock,
+                      value: totalQuantity > 0 ? quantity / totalQuantity : 0,
                       backgroundColor: Colors.grey[300],
                       valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                       borderRadius: BorderRadius.circular(5),
@@ -424,7 +280,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
                   border: Border.all(color: statusColor, width: 1),
                 ),
                 child: Text(
-                  stock > 0 ? "Tersedia" : "Habis",
+                  quantity > 0 ? "Tersedia" : "Habis",
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -440,7 +296,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
   }
 
   void _showToolDetails(String toolName, int currentStock, int maxStock) {
-    double percentage = (currentStock / maxStock) * 100;
+    double percentage = maxStock > 0 ? (currentStock / maxStock) * 100 : 0;
     String statusText;
     Color statusColor;
     
@@ -479,7 +335,6 @@ class _PeralatanPageState extends State<PeralatanPage> {
               ),
               const SizedBox(height: 16),
               
-              // Status
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -505,7 +360,6 @@ class _PeralatanPageState extends State<PeralatanPage> {
               
               const SizedBox(height: 16),
               
-              // Stok saat ini
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -522,7 +376,6 @@ class _PeralatanPageState extends State<PeralatanPage> {
               
               const SizedBox(height: 16),
               
-              // Persentase
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -539,9 +392,8 @@ class _PeralatanPageState extends State<PeralatanPage> {
               
               const SizedBox(height: 16),
               
-              // Progress bar
               LinearProgressIndicator(
-                value: currentStock / maxStock,
+                value: maxStock > 0 ? currentStock / maxStock : 0,
                 backgroundColor: Colors.grey[300],
                 valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                 borderRadius: BorderRadius.circular(10),
@@ -550,7 +402,6 @@ class _PeralatanPageState extends State<PeralatanPage> {
               
               const SizedBox(height: 20),
               
-              // Keterangan
               Text(
                 "Data diperbarui secara real-time berdasarkan peminjaman yang aktif.",
                 style: TextStyle(

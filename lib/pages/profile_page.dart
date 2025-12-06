@@ -18,7 +18,6 @@ class _ProfilePageState extends State<ProfilePage> {
   final AuthService _authService = AuthService();
   int _selectedIndex = 4;
 
-  // Variabel untuk menampung data pengguna
   String _name = "Memuat...";
   String _nim = "Memuat...";
   String _email = "Memuat...";
@@ -48,15 +47,12 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _onItemTapped(int index) {
-    if (index == _selectedIndex) return; // Tidak melakukan apa-apa jika sudah di halaman ini
+    if (index == _selectedIndex) return; 
 
     if (index == 0) {
-      // Jika menekan "Home", kembali ke halaman Home
-      // (Kita asumsikan Home adalah halaman di bawah Profile)
       Navigator.pop(context);
     } 
     else if (index == 1) {
-        // Pindah ke Halaman Jadwal
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const JadwalPage()),
@@ -64,7 +60,6 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
     }
     else if (index == 2) { 
-        // Pindah ke Halaman Form Peminjaman
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
@@ -72,7 +67,6 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
     }
     else if (index == 3) {
-        // Pindah ke Halaman Notifikasi
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const NotificationPage()),
@@ -80,9 +74,6 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
     }
     else {
-      // TODO: Tambahkan navigasi untuk item lain (History, Notification)
-      // Untuk saat ini, kita hanya kembali ke Home dan biarkan Home
-      // yang menangani navigasi ke halaman lain
       Navigator.pop(context); 
     }
   }
@@ -107,17 +98,14 @@ class _ProfilePageState extends State<ProfilePage> {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.transparent, // Transparan agar menyatu
+        backgroundColor: Colors.transparent, 
         elevation: 0,
-        // Tombol kembali (back arrow) akan otomatis muncul
       ),
       body: Stack(
         children: [
-          // --- Latar Belakang Logo ITH (Watermark) ---
-          // Pastikan 'assets/logo-ith.png' sudah ada di pubspec.yaml
           Center(
             child: Opacity(
-              opacity: 0.1, // Membuat gambar samar
+              opacity: 0.1, 
               child: Image.asset(
                 'assets/logo-ith.png',
                 width: 300,
@@ -126,7 +114,6 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
 
-          // --- Konten Utama Halaman ---
           SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
             child: Column(
@@ -143,12 +130,10 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
-      // 3. Bottom Navigation Bar Kustom (Sama seperti Home)
       bottomNavigationBar: _buildCustomBottomNav(),
     );
   }
 
-  // Card untuk header "Profile"
   Widget _buildProfileHeaderCard() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -170,7 +155,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           SizedBox(height: 4),
           Text(
-            "Data diri pengguna.",
+            "Kelola dan perbarui informasi pribadimu agar pengalaman penggunaan layanan kampus menjadi lebih akurat dan efisien.",
             style: TextStyle(
               fontSize: 16,
               color: Colors.black87,
@@ -181,7 +166,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Card untuk info "Nama, NIM, Email, Status"
   Widget _buildProfileInfoCard() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -200,12 +184,11 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 16),
           _buildInfoRow("Status", _role),
           const SizedBox(height: 32),
-          // Tombol Logout
           ElevatedButton(
             onPressed: _logout,
             style: ElevatedButton.styleFrom(
-              backgroundColor: cardColor, // Warna oranye
-              foregroundColor: Colors.black, // Warna teks
+              backgroundColor: cardColor, 
+              foregroundColor: Colors.black, 
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10.0),
                 side: const BorderSide(color: Colors.black, width: 1.5),
@@ -226,14 +209,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Helper untuk membuat baris info (Nama: ... , NIM: ...)
   Widget _buildInfoRow(String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Kolom Label (agar rapi)
         SizedBox(
-          width: 70, // Beri lebar tetap agar titik dua (:) sejajar
+          width: 70, 
           child: Text(
             label,
             style: const TextStyle(
@@ -251,7 +232,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         const SizedBox(width: 8),
-        // Kolom Value (agar bisa wrap jika panjang)
         Expanded(
           child: Text(
             value,
@@ -265,7 +245,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // --- WIDGET YANG DISALIN DARI HOME/LAB PAGE ---
+
   Widget _buildCustomBottomNav() {
     return Container(
       height: 80,
@@ -289,7 +269,7 @@ class _ProfilePageState extends State<ProfilePage> {
           topRight: Radius.circular(20),
         ),
         child: BottomNavigationBar(
-          currentIndex: _selectedIndex, // <-- Ini penting (index 4)
+          currentIndex: _selectedIndex, 
           onTap: _onItemTapped,
           backgroundColor: Colors.transparent,
           elevation: 0,

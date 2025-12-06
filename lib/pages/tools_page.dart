@@ -4,6 +4,7 @@ import 'package:pentas/pages/jadwal_page.dart';
 import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/service/firebase_service.dart';
+import 'package:pentas/service/auth_service.dart';
 
 class PeralatanPage extends StatefulWidget {
   const PeralatanPage({super.key});
@@ -14,11 +15,29 @@ class PeralatanPage extends StatefulWidget {
 
 class _PeralatanPageState extends State<PeralatanPage> {
   int _selectedIndex = 0;
+
   final FirebaseService _firebaseService = FirebaseService();
+  final AuthService _authService = AuthService();
+  String _username = "Pengguna";
 
   final Color cardColor = const Color(0xFFF9A887);
   final Color cardColorBackground = const Color(0xFFFFF0ED);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userDetails = await _authService.getUserDetails();
+    if (mounted && userDetails != null) {
+      setState(() {
+        _username = userDetails['name'] ?? "Pengguna";
+      });
+    }
+  }
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
@@ -45,7 +64,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
     }
 
     if (index == 3) {
-      // Navigasi ke notification page jika ada
+      // Bisa diarahkan ke NotificationPage jika sudah ada
       return;
     }
 
@@ -56,7 +75,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
       );
       return;
     }
-    
+
     setState(() {
       _selectedIndex = index;
     });
@@ -104,24 +123,21 @@ class _PeralatanPageState extends State<PeralatanPage> {
   }
 
   Widget _buildPeralatanHeader() {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Dasmae",
-          style: TextStyle(
+          _username,
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
             color: Colors.black,
           ),
         ),
-        SizedBox(height: 4),
-        Text(
-          "Gunakan alat dengan baik.",
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.black54,
-          ),
+        const SizedBox(height: 4),
+        const Text(
+          "Dapatkan peralatan yang kamu perlukan untuk menunjang tugas dan proyekmu secara maksimal.",
+          style: TextStyle(fontSize: 16, color: Colors.black54),
         ),
       ],
     );
@@ -155,7 +171,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Tersedia berbagai peralatan pendukung untuk kegiatan akademik.",
+                      "Pilih dan manfaatkan peralatan laboratorium secara bertanggung jawab demi kelancaran kegiatan praktikum bersama.",
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[800],
@@ -216,7 +232,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
     final toolData = tool.data() as Map<String, dynamic>;
     final String name = toolData['name'];
     final int quantity = toolData['quantity'];
-    final int totalQuantity = toolData['total_quantity'] ?? quantity; // Fallback to quantity if total_quantity is not set
+    final int totalQuantity = (toolData['total_quantity'] as int?) ?? quantity;
 
     Color statusColor;
     if (quantity == 0) {
@@ -253,14 +269,18 @@ class _PeralatanPageState extends State<PeralatanPage> {
                     Text(
                       name,
                       style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       "Available $quantity/$totalQuantity",
-                      style: const TextStyle(fontSize: 14, color: Colors.black87),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
@@ -273,7 +293,10 @@ class _PeralatanPageState extends State<PeralatanPage> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(15),
@@ -299,7 +322,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
     double percentage = maxStock > 0 ? (currentStock / maxStock) * 100 : 0;
     String statusText;
     Color statusColor;
-    
+
     if (currentStock == 0) {
       statusText = "Habis";
       statusColor = Colors.red;
@@ -334,13 +357,15 @@ class _PeralatanPageState extends State<PeralatanPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text("Status:", style: TextStyle(fontSize: 16)),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(15),
@@ -357,9 +382,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
                   ),
                 ],
               ),
-              
               const SizedBox(height: 16),
-              
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -373,9 +396,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
                   ),
                 ],
               ),
-              
               const SizedBox(height: 16),
-              
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -389,9 +410,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
                   ),
                 ],
               ),
-              
               const SizedBox(height: 16),
-              
               LinearProgressIndicator(
                 value: maxStock > 0 ? currentStock / maxStock : 0,
                 backgroundColor: Colors.grey[300],
@@ -399,9 +418,7 @@ class _PeralatanPageState extends State<PeralatanPage> {
                 borderRadius: BorderRadius.circular(10),
                 minHeight: 20,
               ),
-              
               const SizedBox(height: 20),
-              
               Text(
                 "Data diperbarui secara real-time berdasarkan peminjaman yang aktif.",
                 style: TextStyle(
@@ -452,35 +469,27 @@ class _PeralatanPageState extends State<PeralatanPage> {
           showUnselectedLabels: true,
           selectedFontSize: 12,
           unselectedFontSize: 12,
-          items: [
-            const BottomNavigationBarItem(
+          items: const [
+            BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
               label: "Home",
               activeIcon: Icon(Icons.home),
             ),
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: Icon(Icons.edit_note_outlined),
               label: "Jadwal",
               activeIcon: Icon(Icons.edit_note),
             ),
             BottomNavigationBarItem(
+              icon: Icon(Icons.add_circle, size: 0),
               label: "",
-              icon: Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black,
-                ),
-                child: const Icon(Icons.add, color: Colors.white, size: 30),
-              ),
             ),
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: Icon(Icons.notifications_none_outlined),
               label: "Notification",
               activeIcon: Icon(Icons.notifications),
             ),
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
               label: "Profile",
               activeIcon: Icon(Icons.person),

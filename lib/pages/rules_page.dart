@@ -3,6 +3,7 @@ import 'package:pentas/pages/profile_page.dart';
 import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/login_page.dart';
 import 'package:pentas/pages/form_page.dart';
+import 'package:pentas/service/auth_service.dart';
 
 class PeraturanPage extends StatefulWidget {
   const PeraturanPage({super.key});
@@ -14,6 +15,10 @@ class PeraturanPage extends StatefulWidget {
 class _PeraturanPageState extends State<PeraturanPage> {
   // Index 1 adalah 'History' (sesuai desain Anda)
   int _selectedIndex = 1;
+
+  // Auth & nama user
+  final AuthService _authService = AuthService();
+  String _username = "Pengguna";
 
   // Controller untuk PageView
   late PageController _pageController;
@@ -38,6 +43,16 @@ class _PeraturanPageState extends State<PeraturanPage> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userDetails = await _authService.getUserDetails();
+    if (mounted && userDetails != null) {
+      setState(() {
+        _username = userDetails['name'] ?? "Pengguna";
+      });
+    }
   }
 
   @override
@@ -54,13 +69,13 @@ class _PeraturanPageState extends State<PeraturanPage> {
       // Kembali ke Home
       Navigator.pop(context);
     } else if (index == 2) { 
-        // Pindah ke Halaman Form Peminjaman
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
-        );
-        return;
-      } else if (index == 4) {
+      // Pindah ke Halaman Form Peminjaman
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
+      );
+      return;
+    } else if (index == 4) {
       // Ganti ke Halaman Profile
       Navigator.pushReplacement(
         context,
@@ -68,6 +83,7 @@ class _PeraturanPageState extends State<PeraturanPage> {
       );
     } else if (index == 3) {
       // Index 3 (Notification) tidak melakukan apa-apa.
+      // ignore: avoid_print
       print("Tombol Notifikasi ditekan (tidak ada aksi).");
       return;
     }
@@ -92,18 +108,13 @@ class _PeraturanPageState extends State<PeraturanPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 10),
-            // 1. Header "Hi Dasmae" (Sama seperti Home)
+            // 1. Header "Hi <username>" (Sama seperti Home)
             _buildWelcomeHeader(),
             const SizedBox(height: 24),
 
             // --- DESAIN BARU SLIDER ---
-            
-            // 2. PageView (Slider)
             _buildPageView(),
-
-            // 3. Kontrol Panah (Gaya baru)
             _buildPageIndicator(),
-            
             // --- AKHIR DESAIN BARU ---
             
             const SizedBox(height: 20), // Spasi di bawah
@@ -117,22 +128,22 @@ class _PeraturanPageState extends State<PeraturanPage> {
 
   // --- WIDGET HELPER ---
 
-  // Header "Hi Dasmae" (Sama, tidak berubah)
+  // Header pakai username dari Firebase
   Widget _buildWelcomeHeader() {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Hi Dasmae !",
-          style: TextStyle(
+          "Hi $_username !",
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
             color: Colors.black,
           ),
         ),
-        SizedBox(height: 4),
-        Text(
-          "Jalani harimu dengan ceria.",
+        const SizedBox(height: 4),
+        const Text(
+          "Pahami dan ikuti ketentuan yang berlaku agar proses peminjaman dan penggunaan fasilitas kampus berjalan tertib, aman, dan nyaman untuk semua.",
           style: TextStyle(
             fontSize: 16,
             color: Colors.black54,
@@ -155,27 +166,22 @@ class _PeraturanPageState extends State<PeraturanPage> {
           });
         },
         children: [
-          // Halaman 1: Ketentuan Umum
           _buildRuleCardPage(
             title: _pageTitles[0],
             child: _buildPageKetentuanUmum(),
           ),
-          // Halaman 2: Lab Komputer
           _buildRuleCardPage(
             title: _pageTitles[1],
             child: _buildPageLabKomputer(),
           ),
-          // Halaman 3: Peminjaman Peralatan
           _buildRuleCardPage(
             title: _pageTitles[2],
             child: _buildPagePeralatan(),
           ),
-          // Halaman 4: Prosedur Pengembalian
           _buildRuleCardPage(
             title: _pageTitles[3],
             child: _buildPageProsedur(),
           ),
-          // Halaman 5: Sanksi
           _buildRuleCardPage(
             title: _pageTitles[4],
             child: _buildPageSanksi(),
@@ -186,12 +192,11 @@ class _PeraturanPageState extends State<PeraturanPage> {
   }
 
   // --- WIDGET CARD BARU ---
-  // Helper untuk membuat seluruh card oranye sesuai desain baru
   Widget _buildRuleCardPage({required String title, required Widget child}) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4), // Beri sedikit spasi
+      margin: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: cardBackgroundColor, // Warna oranye muda
+        color: cardBackgroundColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.black, width: 2),
       ),
@@ -200,10 +205,9 @@ class _PeraturanPageState extends State<PeraturanPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header "KETENTUAN UMUM", dll.
             Container(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              color: cardHeaderColor, // Warna oranye tua
+              color: cardHeaderColor,
               child: Text(
                 title,
                 textAlign: TextAlign.center,
@@ -214,12 +218,9 @@ class _PeraturanPageState extends State<PeraturanPage> {
                 ),
               ),
             ),
-            // Konten (child)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
-                // Gunakan SingleChildScrollView agar konten di dalam card
-                // bisa di-scroll jika tidak muat di layar kecil
                 child: SingleChildScrollView(child: child),
               ),
             ),
@@ -229,17 +230,13 @@ class _PeraturanPageState extends State<PeraturanPage> {
     );
   }
 
-
-  // --- PERBAIKAN DESAIN ITEM ATURAN ---
-  // Helper untuk membuat item peraturan (Peminjam, Tujuan, dll.)
   Widget _buildRuleItem(String title, String content) {
-    // Desain baru menggunakan teks rata tengah
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.center, // Pusatkan
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
           title,
-          textAlign: TextAlign.center, // Pusatkan
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -249,20 +246,19 @@ class _PeraturanPageState extends State<PeraturanPage> {
         const SizedBox(height: 4),
         Text(
           content,
-          textAlign: TextAlign.center, // Pusatkan
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 14,
             color: Colors.black87,
-            height: 1.4, // Jarak antar baris
+            height: 1.4,
           ),
         ),
       ],
     );
   }
 
-  // --- KONTEN SLIDER (Tidak diubah, hanya dipanggil) ---
+  // --- KONTEN SLIDER ---
 
-  // Halaman 1: Konten Ketentuan Umum
   Widget _buildPageKetentuanUmum() {
     return Column(
       children: [
@@ -289,7 +285,6 @@ class _PeraturanPageState extends State<PeraturanPage> {
     );
   }
 
-  // Halaman 2: Konten Lab Komputer
   Widget _buildPageLabKomputer() {
     return Column(
       children: [
@@ -321,7 +316,6 @@ class _PeraturanPageState extends State<PeraturanPage> {
     );
   }
 
-  // Halaman 3: Konten Peminjaman Peralatan
   Widget _buildPagePeralatan() {
     return Column(
       children: [
@@ -348,7 +342,6 @@ class _PeraturanPageState extends State<PeraturanPage> {
     );
   }
 
-  // Halaman 4: Konten Prosedur Pengembalian
   Widget _buildPageProsedur() {
     return Column(
       children: [
@@ -370,7 +363,6 @@ class _PeraturanPageState extends State<PeraturanPage> {
     );
   }
   
-  // Halaman 5: Konten Sanksi
   Widget _buildPageSanksi() {
     return Column(
       children: [
@@ -392,10 +384,7 @@ class _PeraturanPageState extends State<PeraturanPage> {
     );
   }
 
-  // --- PERBAIKAN DESAIN PANAH NAVIGASI ---
-  // Widget panah navigasi gaya baru
   Widget _buildPageIndicator() {
-    // Tombol Panah Kustom
     Widget arrowButton({
       required IconData icon,
       required VoidCallback? onPressed,
@@ -404,9 +393,8 @@ class _PeraturanPageState extends State<PeraturanPage> {
       return Container(
         width: 40,
         height: 40,
-        // Jika tidak terlihat, buat transparan
-        color: isVisible ? Colors.transparent : Colors.transparent,
-        child: isVisible // Hanya tampilkan jika isVisible == true
+        color: Colors.transparent,
+        child: isVisible
             ? Material(
                 color: Colors.black,
                 shape: const CircleBorder(),
@@ -416,17 +404,15 @@ class _PeraturanPageState extends State<PeraturanPage> {
                   child: Icon(icon, color: Colors.white, size: 20),
                 ),
               )
-            : null, // Jika tidak, jangan tampilkan apa-apa
+            : null,
       );
     }
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Tombol Kembali (Mundur)
         arrowButton(
           icon: Icons.arrow_back_ios_new_rounded,
-          // Sembunyikan jika di halaman pertama
           isVisible: _currentPageIndex > 0,
           onPressed: () {
             _pageController.previousPage(
@@ -435,11 +421,8 @@ class _PeraturanPageState extends State<PeraturanPage> {
             );
           },
         ),
-
-        // Tombol Maju
         arrowButton(
           icon: Icons.arrow_forward_ios_rounded,
-          // Sembunyikan jika di halaman terakhir
           isVisible: _currentPageIndex < _pageTitles.length - 1,
           onPressed: () {
             _pageController.nextPage(
@@ -452,8 +435,6 @@ class _PeraturanPageState extends State<PeraturanPage> {
     );
   }
 
-
-  // --- WIDGET BOTTOM NAV (Tidak Berubah) ---
   Widget _buildCustomBottomNav() {
     return Container(
       height: 80,
@@ -477,7 +458,7 @@ class _PeraturanPageState extends State<PeraturanPage> {
           topRight: Radius.circular(20),
         ),
         child: BottomNavigationBar(
-          currentIndex: _selectedIndex, // <-- Ini penting (index 1)
+          currentIndex: _selectedIndex,
           onTap: _onItemTapped,
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -488,35 +469,27 @@ class _PeraturanPageState extends State<PeraturanPage> {
           showUnselectedLabels: true,
           selectedFontSize: 12,
           unselectedFontSize: 12,
-          items: [
-            const BottomNavigationBarItem(
+          items: const [
+            BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
               label: "Home",
               activeIcon: Icon(Icons.home),
             ),
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: Icon(Icons.edit_note_outlined),
-              label: "Jadwal", // Mengganti label "History"
+              label: "Jadwal",
               activeIcon: Icon(Icons.edit_note),
             ),
             BottomNavigationBarItem(
+              icon: Icon(Icons.add_circle, size: 0), // center FAB dummy
               label: "",
-              icon: Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black,
-                ),
-                child: const Icon(Icons.add, color: Colors.white, size: 30),
-              ),
             ),
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: Icon(Icons.notifications_none_outlined),
               label: "Notification",
               activeIcon: Icon(Icons.notifications),
             ),
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
               label: "Profile",
               activeIcon: Icon(Icons.person),

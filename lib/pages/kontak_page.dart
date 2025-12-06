@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:pentas/pages/home_page.dart';
 import 'package:pentas/pages/profile_page.dart';
-// Ganti 'rules_page.dart' dengan 'peraturan_page.dart' jika itu nama file Anda
-import 'package:pentas/pages/rules_page.dart'; 
+import 'package:pentas/pages/rules_page.dart';
 import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
 import 'package:pentas/pages/notification_page.dart';
+import 'package:pentas/service/auth_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class KontakPage extends StatefulWidget {
   const KontakPage({super.key});
@@ -15,58 +16,193 @@ class KontakPage extends StatefulWidget {
 }
 
 class _KontakPageState extends State<KontakPage> {
-  int _selectedIndex = 0; 
+  int _selectedIndex = 0;
 
-  // Mendefinisikan warna kustom dari gambar
+  final AuthService _authService = AuthService();
+  String _username = "Pengguna";
+
   final Color cardColor = const Color(0xFFF9A887);
   final Color cardBackgroundColor = const Color(0xFFFFF0ED);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
 
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userDetails = await _authService.getUserDetails();
+    if (mounted && userDetails != null) {
+      setState(() {
+        _username = userDetails['name'] ?? "Pengguna";
+      });
+    }
+  }
+
   void _onItemTapped(int index) {
-      if (index == _selectedIndex) return; // Tidak ada aksi jika di halaman yg sama
+    if (index == _selectedIndex) return;
 
-      if (index == 0) {
-        Navigator.pop(context); // Kembali ke Home
-        return;
-      }
-      
-      if (index == 1) {
-        // Pindah ke Halaman Jadwal
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const JadwalPage()),
-        );
-        return;
-      }
-
-      if (index == 2) { 
-        // Pindah ke Halaman Form Peminjaman
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
-        );
-        return;
-      }
-      
-      if (index == 3) {
-        // Pindah ke Halaman Notifikasi
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NotificationPage()),
-        );
-        return;
-      }
-
-      if (index == 4) { // Index 4 adalah Profile
-        Navigator.pushReplacement( // Ganti halaman
-          context,
-          MaterialPageRoute(builder: (context) => const ProfilePage()),
-        );
-        return;
-      }
+    if (index == 0) {
+      Navigator.pop(context);
+      return;
     }
 
-    @override
+    if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const JadwalPage()),
+      );
+      return;
+    }
+
+    if (index == 2) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const FormPeminjamanPage()),
+      );
+      return;
+    }
+
+    if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const NotificationPage()),
+      );
+      return;
+    }
+
+    if (index == 4) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const ProfilePage()),
+      );
+      return;
+    }
+  }
+
+
+  void _openWhatsApp(String message) async {
+    final phone = "6282213151741"; // ← GANTI NOMOR DI SINI
+    final encodedMessage = Uri.encodeComponent(message);
+    final url = Uri.parse("https://wa.me/$phone?text=$encodedMessage");
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Tidak dapat membuka WhatsApp")),
+      );
+    }
+  }
+
+  void _showQuickMessageSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Pilih Pesan Cepat",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+
+              ListTile(
+                leading: const Icon(Icons.send),
+                title: const Text("Saya ingin meminjam ruangan"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openWhatsApp(
+                    "Halo Admin PENTAS, saya ingin meminjam ruangan.",
+                  );
+                },
+              ),
+
+              ListTile(
+                leading: const Icon(Icons.error_outline),
+                title: const Text("Ada kendala teknis pada laboratorium"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openWhatsApp(
+                    "Halo Admin PENTAS, ada kendala teknis pada laboratorium.",
+                  );
+                },
+              ),
+
+              ListTile(
+                leading: const Icon(Icons.build),
+                title: const Text("Ingin bertanya tentang peralatan"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openWhatsApp(
+                    "Halo Admin PENTAS, saya ingin menanyakan tentang peralatan.",
+                  );
+                },
+              ),
+
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text("Tulis pesan sendiri..."),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showCustomMessageDialog();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+
+  void _showCustomMessageDialog() {
+    TextEditingController controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Pesan Custom"),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: "Tulis pesan di sini...",
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Batal"),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _openWhatsApp(controller.text.isEmpty
+                    ? "Halo Admin PENTAS, saya ingin menanyakan sesuatu."
+                    : controller.text);
+              },
+              child: const Text("Kirim"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ===========================================================
+  // ====================== UI START ============================
+  // ===========================================================
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: pageBackgroundColor,
@@ -76,7 +212,7 @@ class _KontakPageState extends State<KontakPage> {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.transparent, // Transparan agar menyatu
+        backgroundColor: Colors.transparent,
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -85,13 +221,10 @@ class _KontakPageState extends State<KontakPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 10),
-            // 1. Header "Hi Dasmae !" (Sama seperti Home)
             _buildWelcomeHeader(),
             const SizedBox(height: 24),
-            // 2. Banner "Selamat Datang !" (Sama seperti Home)
             _buildWelcomeBanner(),
             const SizedBox(height: 24),
-            // 3. Judul "Kontak Petugas"
             const Text(
               "Kontak Petugas",
               style: TextStyle(
@@ -101,45 +234,36 @@ class _KontakPageState extends State<KontakPage> {
               ),
             ),
             const SizedBox(height: 16),
-            // 4. Grid Kontak
             _buildKontakGrid(),
-            const SizedBox(height: 20), // Spasi di bawah
+            const SizedBox(height: 20),
           ],
         ),
       ),
-      // 5. Bottom Navigation Bar Kustom
       bottomNavigationBar: _buildCustomBottomNav(),
     );
   }
 
-  // --- WIDGET HELPER ---
-
-  // Header "Hi Dasmae" (Disalin dari Home)
   Widget _buildWelcomeHeader() {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Hi Dasmae !",
-          style: TextStyle(
+          "Hi $_username !",
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
             color: Colors.black,
           ),
         ),
-        SizedBox(height: 4),
-        Text(
-          "Jalani harimu dengan ceria.",
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.black54,
-          ),
+        const SizedBox(height: 4),
+        const Text(
+          "Kami siap membantumu mendapatkan informasi yang jelas, cepat, dan sesuai kebutuhanmu.",
+          style: TextStyle(fontSize: 16, color: Colors.black54),
         ),
       ],
     );
   }
 
-  // Banner "Selamat Datang" (Disalin dari Home, dengan perbaikan placeholder)
   Widget _buildWelcomeBanner() {
     return Container(
       decoration: BoxDecoration(
@@ -151,7 +275,6 @@ class _KontakPageState extends State<KontakPage> {
         borderRadius: BorderRadius.circular(18),
         child: Row(
           children: [
-            // Bagian Kiri (Teks)
             Expanded(
               flex: 3,
               child: Padding(
@@ -169,7 +292,7 @@ class _KontakPageState extends State<KontakPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Ayo gunakan fasilitas kampus dengan mudah, optimal, dan bijak.",
+                      "Hubungi kami kapan pun kamu membutuhkan bantuan atau penjelasan lebih lanjut.",
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[800],
@@ -180,17 +303,15 @@ class _KontakPageState extends State<KontakPage> {
                 ),
               ),
             ),
-            // Bagian Kanan (Gambar Placeholder)
             Expanded(
               flex: 2,
               child: Container(
                 height: 140,
-                color: Colors.grey[300], 
+                color: Colors.grey[300],
                 child: Image.asset(
                   'assets/lab_ith.jpg',
                   height: 140,
                   fit: BoxFit.cover,
-                  // Error handling sederhana jika gambar gagal dimuat
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       height: 140,
@@ -207,7 +328,6 @@ class _KontakPageState extends State<KontakPage> {
     );
   }
 
-  // Grid Kontak 2x2
   Widget _buildKontakGrid() {
     return GridView.count(
       crossAxisCount: 2,
@@ -217,31 +337,43 @@ class _KontakPageState extends State<KontakPage> {
       physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: 0.9,
       children: [
-        // Item 1: WhatsApp
+        // WHATSAPP BUTTON
         _buildKontakCard(
           title: "WhatsApp",
-          icon: Icons.contact_page_outlined, // Ikon WhatsApp
-          iconColor: Colors.green.shade700, // Warna khas WhatsApp
+          icon: FontAwesomeIcons.whatsapp,
+          iconColor: Colors.green.shade700,
           onTap: () {
-            print("Tombol WhatsApp ditekan!");
-            // TODO: Tambahkan aksi (misal: buka URL WhatsApp)
+            _showQuickMessageSheet();
           },
         ),
-        // Item 2: Gmail
+
+        // GMAIL BUTTON
         _buildKontakCard(
           title: "Gmail",
-          icon: Icons.mail_outline, // Ikon Gmail
-          iconColor: Colors.red.shade700, // Warna khas Gmail
-          onTap: () {
-            print("Tombol Gmail ditekan!");
-            // TODO: Tambahkan aksi (misal: buka email)
+          icon: FontAwesomeIcons.envelope,
+          iconColor: Colors.red.shade700,
+          onTap: () async {
+            final email = "pentas@ith.ac.id";
+            final subject = Uri.encodeComponent("Butuh Bantuan");
+            final body = Uri.encodeComponent(
+              "Halo admin PENTAS, saya ingin menanyakan sesuatu.",
+            );
+
+            final url = Uri.parse("mailto:$email?subject=$subject&body=$body");
+
+            if (await canLaunchUrl(url)) {
+              await launchUrl(url);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Tidak dapat membuka Gmail")),
+              );
+            }
           },
         ),
       ],
     );
   }
 
-  // Helper untuk membuat card kontak
   Widget _buildKontakCard({
     required String title,
     required IconData icon,
@@ -249,7 +381,7 @@ class _KontakPageState extends State<KontakPage> {
     required VoidCallback onTap,
   }) {
     return Material(
-      color: cardColor, // Warna oranye
+      color: cardColor,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -273,7 +405,7 @@ class _KontakPageState extends State<KontakPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              Icon(icon, size: 80, color: iconColor), // Ikon besar berwarna
+              Icon(icon, size: 80, color: iconColor),
             ],
           ),
         ),
@@ -281,16 +413,13 @@ class _KontakPageState extends State<KontakPage> {
     );
   }
 
-  // --- Bottom Nav Bar (Disalin dari halaman lain) ---
   Widget _buildCustomBottomNav() {
     return Container(
       height: 80,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
+        borderRadius:
+            const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.3),
@@ -300,10 +429,8 @@ class _KontakPageState extends State<KontakPage> {
         ],
       ),
       child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
+        borderRadius:
+            const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
@@ -323,8 +450,8 @@ class _KontakPageState extends State<KontakPage> {
               activeIcon: Icon(Icons.home),
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.edit_note_outlined),
-              label: "Jadwal", 
+              icon: Icon(Icons.edit_note_outlined), 
+              label: "Jadwal",
               activeIcon: Icon(Icons.edit_note),
             ),
             BottomNavigationBarItem(
@@ -354,5 +481,4 @@ class _KontakPageState extends State<KontakPage> {
       ),
     );
   }
-
 }

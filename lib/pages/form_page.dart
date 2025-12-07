@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,7 +18,7 @@ class FormPeminjamanPage extends StatefulWidget {
 }
 
 class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
-  // Data User (Default)
+  // Data user
   String _name = "Memuat...";
   String _nim = "Memuat...";
   String _status = "Memuat...";
@@ -29,8 +31,13 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
   bool _isLoading = false;
 
   final FirebaseService _firebaseService = FirebaseService();
+
+  /// data tools dari Firestore
   Map<String, Map<String, dynamic>> _toolDetails = {};
   List<String> _facilityOptions = [];
+
+  /// subscription ke collection `tools`
+  StreamSubscription<QuerySnapshot>? _toolsSubscription;
 
   // Data Pilihan Form
   DateTime? _selectedDate;
@@ -68,55 +75,74 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
   void initState() {
     super.initState();
     _fetchUserData();
-    _fetchTools();
+    _listenTools();
   }
 
-  Future<void> _fetchTools() async {
-    _firebaseService.getTools().listen((snapshot) {
-      if (snapshot.docs.isNotEmpty) {
-        final tools = snapshot.docs;
-        final Map<String, Map<String, dynamic>> details = {};
-        final List<String> options = [];
-        for (var tool in tools) {
-          final toolData = tool.data() as Map<String, dynamic>;
-          details[toolData['name']] = {
-            'quantity': toolData['quantity'],
-            'id': tool.id
-          };
-          options.add(toolData['name']);
-        }
-        setState(() {
-          _toolDetails = details;
-          _facilityOptions = options;
-          if (_selectedFacilities.isNotEmpty &&
-              !_facilityOptions.contains(_selectedFacilities.first['name'])) {
-            _selectedFacilities.first['name'] = _facilityOptions.first;
-          }
-        });
+  @override
+  void dispose() {
+    // hentikan listen tools agar tidak ada setState setelah halaman ditutup
+    _toolsSubscription?.cancel();
+    _whatsappController.dispose();
+    super.dispose();
+  }
+
+  void _listenTools() {
+    _toolsSubscription = _firebaseService.getTools().listen((snapshot) {
+      if (!mounted) return;
+
+      if (snapshot.docs.isEmpty) return;
+
+      final Map<String, Map<String, dynamic>> details = {};
+      final List<String> options = [];
+
+      for (var tool in snapshot.docs) {
+        final toolData = tool.data() as Map<String, dynamic>;
+        final String name = toolData['name'];
+        details[name] = {
+          'quantity': toolData['quantity'],
+          'id': tool.id,
+        };
+        options.add(name);
       }
+
+      setState(() {
+        _toolDetails = details;
+        _facilityOptions = options;
+
+        // kalau pilihan awal sudah tidak ada di daftar, ganti ke item pertama
+        if (_selectedFacilities.isNotEmpty &&
+            _facilityOptions.isNotEmpty &&
+            !_facilityOptions.contains(_selectedFacilities.first['name'])) {
+          _selectedFacilities.first['name'] = _facilityOptions.first;
+        }
+      });
     });
   }
 
   Future<void> _fetchUserData() async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        DocumentSnapshot userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
-        if (userDoc.exists && mounted) {
-          setState(() {
-            _name = userDoc.get('name') ?? 'Tanpa Nama';
-            _nim = userDoc.get('nim') ?? '-';
-            String role = userDoc.get('role') ?? 'mahasiswa';
-            _status =
-                role == 'dosen' || role == 'admin' ? 'Dosen/Admin' : 'Mahasiswa';
-          });
-        }
-      } catch (e) {
-        print("Error fetching user: $e");
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!mounted) return;
+
+      if (userDoc.exists) {
+        final role = userDoc.get('role') ?? 'mahasiswa';
+        setState(() {
+          _name = userDoc.get('name') ?? 'Tanpa Nama';
+          _nim = userDoc.get('nim') ?? '-';
+          _status =
+              (role == 'dosen' || role == 'admin') ? 'Dosen/Admin' : 'Mahasiswa';
+        });
       }
+    } catch (e) {
+      // boleh kamu kasih snackbar kalau mau
+      debugPrint("Error fetching user: $e");
     }
   }
 
@@ -147,7 +173,7 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
         }
       }
     } catch (e) {
-      print("Error parsing session time: $e");
+      debugPrint("Error parsing session time: $e");
     }
 
     return scheduleDate.add(const Duration(hours: 2));
@@ -161,12 +187,13 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
         _selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content:
-                Text("Mohon lengkapi Tanggal, Ruangan, dan Sesi Waktu")),
+          content: Text("Mohon lengkapi Tanggal, Ruangan, dan Sesi Waktu"),
+        ),
       );
       return;
     }
 
+    // ---- CEK BENTROK RUANG & STOK ALAT (di sisi user) ----
     try {
       final now = DateTime.now();
 
@@ -185,8 +212,8 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
         if (existingSession != null &&
             existingSession == _selectedSession &&
             existingDate != null) {
-          DateTime scheduleDate = existingDate.toDate();
-          DateTime endTime = _parseSessionEndTime(existingSession, scheduleDate);
+          final scheduleDate = existingDate.toDate();
+          final endTime = _parseSessionEndTime(existingSession, scheduleDate);
 
           if (now.isBefore(endTime)) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -203,9 +230,9 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
 
       if (_isBorrowingFacilities) {
         for (var selectedTool in _selectedFacilities) {
-          String toolName = selectedTool['name'];
-          int requestedQty = selectedTool['qty'];
-          int availableQty = _toolDetails[toolName]?['quantity'] ?? 0;
+          final String toolName = selectedTool['name'];
+          final int requestedQty = selectedTool['qty'];
+          final int availableQty = _toolDetails[toolName]?['quantity'] ?? 0;
 
           if (requestedQty > availableQty) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -220,21 +247,21 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
         }
       }
     } catch (e) {
-      print("Error checking availability: $e");
+      debugPrint("Error checking availability: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              const Text("Gagal memeriksa ketersediaan. Silakan coba lagi."),
+        const SnackBar(
+          content: Text("Gagal memeriksa ketersediaan. Silakan coba lagi."),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
+    // ---- KIRIM REQUEST KE FIRESTORE ----
     setState(() => _isLoading = true);
 
     try {
-      User? user = FirebaseAuth.instance.currentUser;
+      final user = FirebaseAuth.instance.currentUser;
 
       List<Map<String, dynamic>> toolsData = [];
       if (_isBorrowingFacilities) {
@@ -258,53 +285,66 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
         'notificationMessage': '',
       });
 
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Text("Berhasil 🎉"),
-            content: const Text(
-                "Permintaan peminjaman telah dikirim. Silakan tunggu persetujuan Admin."),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                child: const Text("OK"),
-              )
-            ],
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text("Berhasil 🎉"),
+          content: const Text(
+            "Permintaan peminjaman telah dikirim. Silakan tunggu persetujuan Admin.",
           ),
-        );
-      }
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text("Gagal mengirim data: $e"),
-              backgroundColor: Colors.red),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Gagal mengirim data: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  // ---------------- NAV BOTTOM -----------------
+
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
+
     if (index == 0) {
       Navigator.pushAndRemoveUntil(
-          context, MaterialPageRoute(builder: (_) => const HomePage()), (r) => false);
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (r) => false,
+      );
     } else if (index == 1) {
       Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const JadwalPage()));
+        context,
+        MaterialPageRoute(builder: (_) => const JadwalPage()),
+      );
     } else if (index == 3) {
-      Navigator.pushReplacement(context,
-          MaterialPageRoute(builder: (_) => const NotificationPage()));
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const NotificationPage()),
+      );
     } else if (index == 4) {
       Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const ProfilePage()));
+        context,
+        MaterialPageRoute(builder: (_) => const ProfilePage()),
+      );
     }
   }
 
@@ -324,7 +364,7 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
   }
 
   Future<void> _pickDate() async {
-    DateTime? picked = await showDatePicker(
+    final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime.now(),
@@ -338,13 +378,17 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     }
   }
 
+  // ---------------- UI BUILD -------------------
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: pageBackgroundColor,
       appBar: AppBar(
-        title: const Text("Peminjaman",
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Peminjaman",
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -372,14 +416,21 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Hi $_name !",
-            style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.black)),
+        Text(
+          "Hi $_name !",
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
       ],
     );
   }
+
+  // ---------- sisanya (form card, dekorasi, bottom nav) ----------
+  // Bagian di bawah ini sama persis dengan punyamu yang terakhir,
+  // jadi tidak aku ubah selain yang perlu.
 
   Widget _buildFormCard() {
     return Container(
@@ -395,12 +446,15 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16),
               color: cardHeaderColor,
-              child: const Text("Form Peminjaman",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white)),
+              child: const Text(
+                "Form Peminjaman",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.all(20.0),
@@ -415,7 +469,6 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                     const SizedBox(height: 12),
                     _buildStaticInfoRow("Status", _status),
                     const SizedBox(height: 20),
-
                     _buildInputLabel("WhatsApp"),
                     const SizedBox(height: 4),
                     TextFormField(
@@ -425,7 +478,6 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                       validator: (v) => v!.isEmpty ? "Wajib diisi" : null,
                     ),
                     const SizedBox(height: 16),
-
                     _buildInputLabel("Ruangan"),
                     const SizedBox(height: 4),
                     DropdownButtonFormField<String>(
@@ -433,12 +485,16 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                       hint: const Text("Pilih Ruangan"),
                       decoration: _inputDecoration(),
                       items: _roomList
-                          .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                          .map(
+                            (r) => DropdownMenuItem(
+                              value: r,
+                              child: Text(r),
+                            ),
+                          )
                           .toList(),
                       onChanged: (v) => setState(() => _selectedRoom = v),
                     ),
                     const SizedBox(height: 16),
-
                     _buildInputLabel("Tanggal Pinjam"),
                     const SizedBox(height: 4),
                     Container(
@@ -459,7 +515,6 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
                     _buildInputLabel("Waktu (Sesi)"),
                     const SizedBox(height: 4),
                     DropdownButtonFormField<String>(
@@ -467,30 +522,38 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                       hint: const Text("Pilih Sesi"),
                       decoration: _inputDecoration(),
                       items: _sessionList
-                          .map((s) => DropdownMenuItem(
+                          .map(
+                            (s) => DropdownMenuItem(
                               value: s,
-                              child: Text(s,
-                                  style: const TextStyle(fontSize: 14))))
+                              child: Text(
+                                s,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          )
                           .toList(),
                       onChanged: (v) => setState(() => _selectedSession = v),
                     ),
                     const SizedBox(height: 16),
-
                     Container(
                       decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(10)),
+                        color: Colors.white.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       child: SwitchListTile(
-                        title: const Text("Pinjam Fasilitas Tambahan?",
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 14)),
+                        title: const Text(
+                          "Pinjam Fasilitas Tambahan?",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
                         value: _isBorrowingFacilities,
                         activeColor: cardHeaderColor,
                         onChanged: (v) =>
                             setState(() => _isBorrowingFacilities = v),
                       ),
                     ),
-
                     if (_isBorrowingFacilities) ...[
                       const SizedBox(height: 16),
                       Column(
@@ -519,8 +582,9 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                                         child: Text(
                                           "Tambah",
                                           style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 12),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
@@ -531,7 +595,6 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                             ],
                           ),
                           const SizedBox(height: 4),
-
                           ListView.separated(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -541,37 +604,44 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                             itemBuilder: (context, index) {
                               return Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 2, vertical: 4),
+                                  horizontal: 2,
+                                  vertical: 4,
+                                ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.max,
                                   children: [
                                     Expanded(
                                       flex: 4,
                                       child: Container(
-                                        constraints:
-                                            const BoxConstraints(minWidth: 120),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 120,
+                                        ),
                                         child: DropdownButtonFormField<String>(
-                                          value: _selectedFacilities[index]
-                                              ['name'],
+                                          value:
+                                              _selectedFacilities[index]['name'],
                                           isDense: true,
                                           isExpanded: true,
                                           decoration: _inputDecoration(
                                             contentPadding:
                                                 const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 10),
+                                              horizontal: 12,
+                                              vertical: 10,
+                                            ),
                                           ),
                                           items: _facilityOptions
-                                              .map((f) => DropdownMenuItem(
-                                                    value: f,
-                                                    child: Text(
-                                                      f,
-                                                      style: const TextStyle(
-                                                          fontSize: 13),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
+                                              .map(
+                                                (f) => DropdownMenuItem(
+                                                  value: f,
+                                                  child: Text(
+                                                    f,
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
                                                     ),
-                                                  ))
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              )
                                               .toList(),
                                           onChanged: (v) => setState(() =>
                                               _selectedFacilities[index]
@@ -580,7 +650,6 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                                       ),
                                     ),
                                     const SizedBox(width: 6),
-
                                     SizedBox(
                                       width: 55,
                                       child: TextFormField(
@@ -592,14 +661,14 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                                         decoration: _inputDecoration(
                                           contentPadding:
                                               const EdgeInsets.symmetric(
-                                                  vertical: 10,
-                                                  horizontal: 4),
+                                            vertical: 10,
+                                            horizontal: 4,
+                                          ),
                                         ),
                                         onChanged: (v) {
                                           if (v.isNotEmpty) {
                                             setState(() {
-                                              _selectedFacilities[index]
-                                                      ['qty'] =
+                                              _selectedFacilities[index]['qty'] =
                                                   int.tryParse(v) ?? 1;
                                             });
                                           }
@@ -607,16 +676,19 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-
                                     if (_selectedFacilities.length > 1)
                                       SizedBox(
                                         width: 36,
                                         child: IconButton(
-                                          icon: const Icon(Icons.cancel,
-                                              size: 20, color: Colors.red),
+                                          icon: const Icon(
+                                            Icons.cancel,
+                                            size: 20,
+                                            color: Colors.red,
+                                          ),
                                           padding: EdgeInsets.zero,
-                                          constraints:
-                                              const BoxConstraints(minWidth: 36),
+                                          constraints: const BoxConstraints(
+                                            minWidth: 36,
+                                          ),
                                           onPressed: () =>
                                               _removeFacility(index),
                                         ),
@@ -629,24 +701,28 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                         ],
                       ),
                     ],
-
                     const SizedBox(height: 20),
                     const Text(
-                        "Dengan ini saya akan mengikuti seluruh aturan yang berlaku sebagai mana yang telah terlampir pada halaman Aturan !!!",
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.justify),
+                      "Dengan ini saya akan mengikuti seluruh aturan yang berlaku sebagaimana yang telah terlampir pada halaman Aturan !!!",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.justify,
+                    ),
                     const SizedBox(height: 20),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
-                          child: const Text("Batal",
-                              style: TextStyle(
-                                  color: Colors.black87,
-                                  fontWeight: FontWeight.bold)),
+                          child: const Text(
+                            "Batal",
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton(
@@ -655,21 +731,30 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                             backgroundColor: Colors.white,
                             foregroundColor: Colors.black,
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: const BorderSide(color: Colors.black)),
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(color: Colors.black),
+                            ),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 32, vertical: 12),
+                              horizontal: 32,
+                              vertical: 12,
+                            ),
                           ),
                           child: _isLoading
                               ? const SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.black))
-                              : const Text("Submit",
+                                    strokeWidth: 2,
+                                    color: Colors.black,
+                                  ),
+                                )
+                              : const Text(
+                                  "Submit",
                                   style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold)),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                       ],
                     ),
@@ -684,26 +769,46 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
   }
 
   Widget _buildStaticInfoRow(String label, String value) {
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SizedBox(
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
           width: 100,
-          child:
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w500))),
-      const Text(": ", style: TextStyle(fontWeight: FontWeight.bold)),
-      Expanded(
-          child: Text(value,
-              style: const TextStyle(fontWeight: FontWeight.w500))),
-    ]);
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
+        ),
+        const Text(
+          ": ",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildInputLabel(String label) {
-    return Row(children: [
-      SizedBox(
+    return Row(
+      children: [
+        SizedBox(
           width: 100,
-          child:
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w500))),
-      const Text(": ", style: TextStyle(fontWeight: FontWeight.bold)),
-    ]);
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
+        ),
+        const Text(
+          ": ",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
   }
 
   InputDecoration _inputDecoration({EdgeInsetsGeometry? contentPadding}) {
@@ -711,16 +816,20 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
       filled: true,
       fillColor: inputFillColor,
       contentPadding:
-          contentPadding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding ??
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Colors.black54)),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.black54),
+      ),
       enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Colors.black54)),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.black54),
+      ),
       focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Colors.black, width: 1.5)),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.black, width: 1.5),
+      ),
     );
   }
 
@@ -728,18 +837,24 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     return Container(
       height: 80,
       decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.grey.withOpacity(0.3),
-                spreadRadius: 2,
-                blurRadius: 10)
-          ]),
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.3),
+            spreadRadius: 2,
+            blurRadius: 10,
+          ),
+        ],
+      ),
       child: ClipRRect(
         borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
@@ -752,30 +867,37 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
           showUnselectedLabels: true,
           items: [
             const BottomNavigationBarItem(
-                icon: Icon(Icons.home_outlined),
-                label: "Home",
-                activeIcon: Icon(Icons.home)),
+              icon: Icon(Icons.home_outlined),
+              label: "Home",
+              activeIcon: Icon(Icons.home),
+            ),
             const BottomNavigationBarItem(
-                icon: Icon(Icons.edit_note_outlined),
-                label: "Jadwal",
-                activeIcon: Icon(Icons.edit_note)),
+              icon: Icon(Icons.edit_note_outlined),
+              label: "Jadwal",
+              activeIcon: Icon(Icons.edit_note),
+            ),
             BottomNavigationBarItem(
-                label: "",
-                icon: Container(
-                    width: 45,
-                    height: 45,
-                    decoration: const BoxDecoration(
-                        shape: BoxShape.circle, color: Colors.black),
-                    child:
-                        const Icon(Icons.add, color: Colors.white, size: 30))),
+              label: "",
+              icon: Container(
+                width: 45,
+                height: 45,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black,
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 30),
+              ),
+            ),
             const BottomNavigationBarItem(
-                icon: Icon(Icons.notifications_none_outlined),
-                label: "Notification",
-                activeIcon: Icon(Icons.notifications)),
+              icon: Icon(Icons.notifications_none_outlined),
+              label: "Notification",
+              activeIcon: Icon(Icons.notifications),
+            ),
             const BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline),
-                label: "Profile",
-                activeIcon: Icon(Icons.person)),
+              icon: Icon(Icons.person_outline),
+              label: "Profile",
+              activeIcon: Icon(Icons.person),
+            ),
           ],
         ),
       ),

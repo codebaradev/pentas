@@ -216,7 +216,7 @@ class _HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 4),
         const Text(
-          "Jalani harimu dengan ceria",
+          "Mulai aktivitasmu dengan fokus dan semangat baru untuk mencapai hasil terbaik hari ini.",
           style: TextStyle(
             fontSize: 16,
             color: Colors.black54,
@@ -254,7 +254,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Ayo gunakan fasilitas kampus dengan mudah, optimal, dan bijak.",
+                      "Manfaatkan fasilitas kampus secara optimal sebagai dukungan bagi produktivitas dan perjalanan akademikmu.",
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[800],

@@ -4,6 +4,7 @@ import 'package:pentas/pages/form_page.dart';
 import 'package:pentas/pages/jadwal_page.dart';
 import 'package:pentas/pages/notification_page.dart';
 import 'package:pentas/pages/profile_page.dart';
+import 'package:pentas/service/auth_service.dart';
 import 'dart:async';
 
 class LaboratoriumPage extends StatefulWidget {
@@ -15,11 +16,14 @@ class LaboratoriumPage extends StatefulWidget {
 
 class _LaboratoriumPageState extends State<LaboratoriumPage> {
   int _selectedIndex = 0;
+
   final Color cardColor = const Color(0xFFF9A887);
   final Color cardBackgroundColor = const Color(0xFFFFF0ED);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
 
-  // Map untuk menyimpan sesi sibuk untuk setiap ruangan
+  final AuthService _authService = AuthService();
+  String _username = "Pengguna";
+
   Map<String, List<String>> _roomBusySessions = {
     "Ruangan 201": [],
     "Ruangan 202": [],
@@ -27,7 +31,21 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     "Ruangan 204": [],
   };
 
-  // Fungsi untuk mem-parsing waktu akhir sesi
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userDetails = await _authService.getUserDetails();
+    if (mounted && userDetails != null) {
+      setState(() {
+        _username = userDetails['name'] ?? "Pengguna";
+      });
+    }
+  }
+
   DateTime _parseSessionEndTime(String session, DateTime scheduleDate) {
     try {
       if (session.contains(':') && session.contains('-')) {
@@ -41,8 +59,13 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
             if (endParts.length == 2) {
               final endHour = int.parse(endParts[0]);
               final endMinute = int.parse(endParts[1]);
-              return DateTime(scheduleDate.year, scheduleDate.month,
-                  scheduleDate.day, endHour, endMinute);
+              return DateTime(
+                scheduleDate.year,
+                scheduleDate.month,
+                scheduleDate.day,
+                endHour,
+                endMinute,
+              );
             }
           }
         }
@@ -54,7 +77,6 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     return scheduleDate.add(const Duration(hours: 2));
   }
 
-  // Fungsi untuk memproses snapshot dari Firestore
   void _processSnapshot(List<QueryDocumentSnapshot> docs) {
     Map<String, List<String>> tempBusySessions = {
       "Ruangan 201": [],
@@ -71,9 +93,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
         String? sessionString = data['session'];
         Timestamp? dateTimestamp = data['date'];
 
-        if (roomName != null &&
-            sessionString != null &&
-            dateTimestamp != null) {
+        if (roomName != null && sessionString != null && dateTimestamp != null) {
           DateTime scheduleDate = dateTimestamp.toDate();
           DateTime endTime = _parseSessionEndTime(sessionString, scheduleDate);
 
@@ -90,7 +110,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     }
 
     if (mounted && _roomBusySessions.toString() != tempBusySessions.toString()) {
-       Future.microtask(() {
+      Future.microtask(() {
         setState(() {
           _roomBusySessions = tempBusySessions;
         });
@@ -184,7 +204,6 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     );
   }
 
-  // Grid Ruangan yang sudah dinamis
   Widget _buildRoomGrid() {
     return GridView.count(
       crossAxisCount: 2,
@@ -202,14 +221,13 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     );
   }
 
-  // Card Ruangan yang sudah dinamis
   Widget _buildRoomCard(String roomNumber, String capacity) {
     return InkWell(
       onTap: () => _showRoomDetails(roomNumber, capacity),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: cardColor, // Warna orange
+          color: cardColor,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.black54, width: 1),
         ),
@@ -230,13 +248,16 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Laboratorium",
-                        style: TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.bold)),
+                    const Text(
+                      "Laboratorium",
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
                     Row(
                       children: [
-                        Text("Kapasitas : $capacity",
-                            style: const TextStyle(fontSize: 9)),
+                        Text(
+                          "Kapasitas : $capacity",
+                          style: const TextStyle(fontSize: 9),
+                        ),
                         const SizedBox(width: 2),
                         const Icon(Icons.people, size: 10),
                       ],
@@ -246,7 +267,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
               ],
             ),
             const Spacer(),
-             const Text(
+            const Text(
               "Ketuk untuk lihat detail",
               style: TextStyle(fontSize: 12, color: Colors.black54),
             ),
@@ -261,9 +282,12 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     final roomName = "Ruangan $roomNumber";
     final busySessions = _roomBusySessions[roomName] ?? [];
     final allSessions = [
-      "Sesi 1 (07.00 - 08.40)", "Sesi 2 (08.45 - 10.25)",
-      "Sesi 3 (10.30 - 12.10)", "Sesi 4 (13.30 - 15.10)",
-      "Sesi 5 (15.15 - 16.55)", "Sesi 6 (17.00 - 18.40)",
+      "Sesi 1 (07.00 - 08.40)",
+      "Sesi 2 (08.45 - 10.25)",
+      "Sesi 3 (10.30 - 12.10)",
+      "Sesi 4 (13.30 - 15.10)",
+      "Sesi 5 (15.15 - 16.55)",
+      "Sesi 6 (17.00 - 18.40)",
     ];
 
     showModalBottomSheet(
@@ -278,9 +302,10 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Detail Ruangan $roomNumber",
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(
+                "Detail Ruangan $roomNumber",
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               Flexible(
                 child: ListView.builder(
@@ -288,26 +313,31 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
                   itemCount: allSessions.length,
                   itemBuilder: (context, index) {
                     final fullSessionName = allSessions[index];
-                    final shortSessionName = fullSessionName.split(' ')[0] + " " + fullSessionName.split(' ')[1];
+                    final shortSessionName =
+                        "${fullSessionName.split(' ')[0]} ${fullSessionName.split(' ')[1]}";
                     final isBooked = busySessions.contains(shortSessionName);
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: isBooked
                             ? Colors.red.withOpacity(0.1)
                             : Colors.green.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                            color: isBooked ? Colors.red : Colors.green),
+                          color: isBooked ? Colors.red : Colors.green,
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(fullSessionName,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w500)),
+                          Text(
+                            fullSessionName,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
                           Text(
                             isBooked ? "Booked" : "Available",
                             style: TextStyle(
@@ -329,20 +359,20 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
   }
 
   Widget _buildLabHeader() {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "Dasmae",
-          style: TextStyle(
+          _username,
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
             color: Colors.black,
           ),
         ),
-        SizedBox(height: 4),
-        Text(
-          "Ayo gunakan Laboratorium ITH",
+        const SizedBox(height: 4),
+        const Text(
+          "Akses ruang laboratorium yang nyaman dan siap mendukung kebutuhan komputasimu secara efektif.",
           style: TextStyle(
             fontSize: 16,
             color: Colors.black54,
@@ -380,7 +410,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Fasilitas kampus dengan komputer yang memadai untuk kebutuhan akademik.",
+                      "Gunakan setiap fasilitas laboratorium dengan bijak agar kegiatan belajar berjalan lancar dan terarah.",
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[800],
@@ -400,7 +430,6 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
                   'assets/lab_ith.jpg',
                   height: 140,
                   fit: BoxFit.cover,
-                  // Error handling sederhana jika gambar gagal dimuat
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       height: 140,
@@ -451,35 +480,27 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
           showUnselectedLabels: true,
           selectedFontSize: 12,
           unselectedFontSize: 12,
-          items: [
-            const BottomNavigationBarItem(
+          items: const [
+            BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
               label: "Home",
               activeIcon: Icon(Icons.home),
             ),
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: Icon(Icons.edit_note_outlined),
               label: "Jadwal",
               activeIcon: Icon(Icons.calendar_today),
             ),
             BottomNavigationBarItem(
+              icon: Icon(Icons.add_circle, size: 0),
               label: "",
-              icon: Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black,
-                ),
-                child: const Icon(Icons.add, color: Colors.white, size: 30),
-              ),
             ),
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: Icon(Icons.notifications_none_outlined),
               label: "Notifikasi",
               activeIcon: Icon(Icons.notifications),
             ),
-            const BottomNavigationBarItem(
+            BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
               label: "Profil",
               activeIcon: Icon(Icons.person),

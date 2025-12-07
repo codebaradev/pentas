@@ -181,81 +181,77 @@ class _PermintaanPageState extends State<PermintaanPage>
   }
 
   // Update Firebase
-  Future<void> _updateStatus(
-      String docId, String newStatus, Map<String, dynamic> requestData) async {
-    String message = newStatus == 'accepted'
+    Future<void> _updateStatus(
+    String docId,
+    String newStatus,
+    Map<String, dynamic> requestData,
+  ) async {
+    final String message = newStatus == 'accepted'
         ? "Peminjaman Ruangan di Setujui !"
         : "Peminjaman Ruangan di Tolak !";
 
-    // Jika status disetujui dan ada peminjaman alat, kurangi stok
+    // 1) Jika disetujui & ada peminjaman alat → kurangi stok via FirebaseService
     if (newStatus == 'accepted' &&
         requestData['hasTools'] == true &&
         requestData['tools'] != null) {
       try {
-        final firestore = FirebaseFirestore.instance;
-        List requestedTools = requestData['tools'];
+        // pastikan bentuknya List<dynamic>
+        final List<dynamic> tools =
+            List<dynamic>.from(requestData['tools'] as List);
 
-        await firestore.runTransaction((transaction) async {
-          final toolsSnapshot = await firestore.collection('tools').get();
-          final toolIdMap = {
-            for (var doc in toolsSnapshot.docs) doc.data()['name']: doc.id
-          };
-
-          for (var requestedTool in requestedTools) {
-            final toolName = requestedTool['name'] as String?;
-            final requestedQty = int.tryParse(requestedTool['qty']?.toString() ?? '0') ?? 0;
-
-            if (toolName == null || !toolIdMap.containsKey(toolName) || requestedQty <= 0) {
-              continue;
-            }
-
-            final toolId = toolIdMap[toolName]!;
-            final toolRef = firestore.collection('tools').doc(toolId);
-            final toolDoc = await transaction.get(toolRef);
-
-            if (!toolDoc.exists) continue;
-
-            final toolData = toolDoc.data() as Map<String, dynamic>;
-            final currentQty = toolData['quantity'] as int? ?? 0;
-            
-            // This is the critical fix: Preserve total_quantity
-            final totalQty = toolData['total_quantity'] as int? ?? currentQty;
-
-            final newQty = currentQty - requestedQty;
-
-            transaction.update(toolRef, {
-              'quantity': newQty,
-              'total_quantity': totalQty, // Explicitly preserve the total quantity
-            });
-          }
-        });
+        // pakai helper yang sudah kamu buat di firebase_service.dart
+        await _firebaseService.decreaseToolsStockForRequest(tools);
       } catch (e) {
-        print("Error updating tool quantity with transaction: $e");
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Text("Gagal memperbarui stok alat!"),
-          backgroundColor: errorColor,
-        ));
-        return; 
+        debugPrint("Error updating tools stock: $e");
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("Gagal memperbarui stok alat!"),
+            backgroundColor: errorColor,
+          ),
+        );
+        return; // jangan lanjut update status kalau stok gagal
       }
     }
 
-    // Update status dan tambahkan notifikasi
-    FirebaseFirestore.instance.collection('requests').doc(docId).update({
-      'status': newStatus,
-      'notificationMessage': message,
-      'notificationRead': false,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    // 2) Update status request + notifikasi
+    try {
+      await FirebaseFirestore.instance
+          .collection('requests')
+          .doc(docId)
+          .update({
+        'status': newStatus,
+        'notificationMessage': message,
+        'notificationRead': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(newStatus == 'accepted'
-          ? "Permintaan Disetujui ✅"
-          : "Permintaan Ditolak ❌"),
-      backgroundColor: newStatus == 'accepted' ? successColor : errorColor,
-      duration: const Duration(seconds: 2),
-      behavior: SnackBarBehavior.floating,
-    ));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            newStatus == 'accepted'
+                ? "Permintaan Disetujui ✅"
+                : "Permintaan Ditolak ❌",
+          ),
+          backgroundColor:
+              newStatus == 'accepted' ? successColor : errorColor,
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      debugPrint("Error update status request: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Gagal mengubah status permintaan!"),
+          backgroundColor: errorColor,
+        ),
+      );
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {

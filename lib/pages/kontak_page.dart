@@ -81,17 +81,43 @@ class _KontakPageState extends State<KontakPage> {
     }
   }
 
-
+  // ===========================================================
+  // =============== FINAL WHATSAPP FUNCTION ===================
+  // ===========================================================
   void _openWhatsApp(String message) async {
-    final phone = "6282213151741"; // ← GANTI NOMOR DI SINI
+    final phone = "6282213151741"; // ← nomor tujuan
     final encodedMessage = Uri.encodeComponent(message);
-    final url = Uri.parse("https://wa.me/$phone?text=$encodedMessage");
 
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
+    final whatsappUri =
+        Uri.parse("whatsapp://send?phone=$phone&text=$encodedMessage");
+    final waMeUri =
+        Uri.parse("https://wa.me/$phone?text=$encodedMessage");
+
+    try {
+      // Coba buka langsung aplikasi WhatsApp
+      if (await canLaunchUrl(whatsappUri)) {
+        await launchUrl(
+          whatsappUri,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        // Kalau gagal (atau WA tidak terdeteksi), fallback ke wa.me (browser)
+        final launched = await launchUrl(
+          waMeUri,
+          mode: LaunchMode.externalApplication,
+        );
+
+        if (!launched) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("WhatsApp tidak dapat dibuka di perangkat ini."),
+            ),
+          );
+        }
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Tidak dapat membuka WhatsApp")),
+        SnackBar(content: Text("Gagal membuka WhatsApp: $e")),
       );
     }
   }
@@ -163,7 +189,6 @@ class _KontakPageState extends State<KontakPage> {
     );
   }
 
-
   void _showCustomMessageDialog() {
     TextEditingController controller = TextEditingController();
 
@@ -187,9 +212,11 @@ class _KontakPageState extends State<KontakPage> {
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
-                _openWhatsApp(controller.text.isEmpty
-                    ? "Halo Admin PENTAS, saya ingin menanyakan sesuatu."
-                    : controller.text);
+                _openWhatsApp(
+                  controller.text.isEmpty
+                      ? "Halo Admin PENTAS, saya ingin menanyakan sesuatu."
+                      : controller.text,
+                );
               },
               child: const Text("Kirim"),
             ),
@@ -316,7 +343,8 @@ class _KontakPageState extends State<KontakPage> {
                     return Container(
                       height: 140,
                       color: Colors.grey[300],
-                      child: Icon(Icons.broken_image, color: Colors.grey[600]),
+                      child:
+                          Icon(Icons.broken_image, color: Colors.grey[600]),
                     );
                   },
                 ),
@@ -361,11 +389,21 @@ class _KontakPageState extends State<KontakPage> {
 
             final url = Uri.parse("mailto:$email?subject=$subject&body=$body");
 
-            if (await canLaunchUrl(url)) {
-              await launchUrl(url);
-            } else {
+            try {
+              final launched = await launchUrl(
+                url,
+                mode: LaunchMode.externalApplication,
+              );
+              if (!launched) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Tidak dapat membuka aplikasi email."),
+                  ),
+                );
+              }
+            } catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Tidak dapat membuka Gmail")),
+                SnackBar(content: Text("Gagal membuka email: $e")),
               );
             }
           },
@@ -418,8 +456,10 @@ class _KontakPageState extends State<KontakPage> {
       height: 80,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.3),
@@ -429,8 +469,10 @@ class _KontakPageState extends State<KontakPage> {
         ],
       ),
       child: ClipRRect(
-        borderRadius:
-            const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
@@ -450,7 +492,7 @@ class _KontakPageState extends State<KontakPage> {
               activeIcon: Icon(Icons.home),
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.edit_note_outlined), 
+              icon: Icon(Icons.edit_note_outlined),
               label: "Jadwal",
               activeIcon: Icon(Icons.edit_note),
             ),

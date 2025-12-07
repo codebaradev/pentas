@@ -381,6 +381,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
+  // ====================== TOOL CARD (VERSI RESPONSIF) ======================
   Widget _buildToolCard(DocumentSnapshot tool) {
     final toolData = tool.data() as Map<String, dynamic>;
     final String name = (toolData['name'] ?? '').toString();
@@ -390,27 +391,33 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.black54, width: 1),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Icon(Icons.build, size: 40),
-          const SizedBox(width: 20),
+          const Icon(Icons.build, size: 36),
+          const SizedBox(width: 12),
+
+          // TEKS (nama + available) – fleksibel lebar
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
                   "Available: $quantity / $totalQuantity",
                   style: const TextStyle(fontSize: 14),
@@ -418,74 +425,90 @@ class _AdminHomePageState extends State<AdminHomePage> {
               ],
             ),
           ),
-          // Kurangi stok (pakai get + FieldValue.increment)
-          IconButton(
-            icon: const Icon(Icons.remove),
-            onPressed: () async {
-              try {
-                final docRef =
-                    FirebaseFirestore.instance.collection('tools').doc(tool.id);
-                final snapshot = await docRef.get();
-                if (!snapshot.exists) return;
 
-                final data = snapshot.data() as Map<String, dynamic>;
-                final currentQty = _safeInt(data['quantity']);
+          const SizedBox(width: 8),
 
-                if (currentQty > 0) {
-                  await docRef.update({
-                    'quantity': FieldValue.increment(-1),
-                  });
-                }
-              } catch (e, st) {
-                debugPrint('Error decrement tool: $e');
-                debugPrint(st.toString());
-              }
-            },
-          ),
-          // Tambah stok (pakai get + FieldValue.increment)
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              try {
-                final docRef =
-                    FirebaseFirestore.instance.collection('tools').doc(tool.id);
-                final snapshot = await docRef.get();
-                if (!snapshot.exists) return;
+          // TOMBOL - + EDIT DELETE – di-fit supaya tidak “ngedorong” teks
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.remove),
+                  splashRadius: 20,
+                  onPressed: () async {
+                    try {
+                      final docRef = FirebaseFirestore.instance
+                          .collection('tools')
+                          .doc(tool.id);
+                      final snapshot = await docRef.get();
+                      if (!snapshot.exists) return;
 
-                final data = snapshot.data() as Map<String, dynamic>;
-                final currentQty = _safeInt(data['quantity']);
-                final currentTotal =
-                    _safeInt(data['total_quantity'] ?? data['quantity']);
+                      final data = snapshot.data() as Map<String, dynamic>;
+                      final currentQty = _safeInt(data['quantity']);
 
-                if (currentQty < currentTotal) {
-                  await docRef.update({
-                    'quantity': FieldValue.increment(1),
-                  });
-                }
-              } catch (e, st) {
-                debugPrint('Error increment tool: $e');
-                debugPrint(st.toString());
-              }
-            },
-          ),
-          // Edit
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              _showEditToolDialog(tool.id, name, quantity, totalQuantity);
-            },
-          ),
-          // Hapus
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () {
-              _showDeleteToolDialog(tool.id, name);
-            },
+                      if (currentQty > 0) {
+                        await docRef.update({
+                          'quantity': FieldValue.increment(-1),
+                        });
+                      }
+                    } catch (e, st) {
+                      debugPrint('Error decrement tool: $e');
+                      debugPrint(st.toString());
+                    }
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  splashRadius: 20,
+                  onPressed: () async {
+                    try {
+                      final docRef = FirebaseFirestore.instance
+                          .collection('tools')
+                          .doc(tool.id);
+                      final snapshot = await docRef.get();
+                      if (!snapshot.exists) return;
+
+                      final data = snapshot.data() as Map<String, dynamic>;
+                      final currentQty = _safeInt(data['quantity']);
+                      final currentTotal =
+                          _safeInt(data['total_quantity'] ?? data['quantity']);
+
+                      if (currentQty < currentTotal) {
+                        await docRef.update({
+                          'quantity': FieldValue.increment(1),
+                        });
+                      }
+                    } catch (e, st) {
+                      debugPrint('Error increment tool: $e');
+                      debugPrint(st.toString());
+                    }
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit),
+                  splashRadius: 20,
+                  onPressed: () {
+                    _showEditToolDialog(tool.id, name, quantity, totalQuantity);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  splashRadius: 20,
+                  onPressed: () {
+                    _showDeleteToolDialog(tool.id, name);
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+
+  // ========================================================================
 
   void _showEditToolDialog(
     String toolId,
@@ -747,88 +770,91 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   Widget _buildRoomCard(String roomNumber, String capacity) {
-    String currentSession = _getCurrentSession();
-    List<String> busySessions =
-        _roomBusySessions["Ruangan Kelas $roomNumber"] ?? [];
-    bool isNowBusy = busySessions.contains(currentSession);
+  String currentSession = _getCurrentSession();
+  List<String> busySessions =
+      _roomBusySessions["Ruangan Kelas $roomNumber"] ?? [];
+  bool isNowBusy = busySessions.contains(currentSession);
 
-    return InkWell(
-      onTap: () => _showRoomDetails(roomNumber, capacity),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.black54, width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              "Room $roomNumber",
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.computer_outlined, size: 30),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Laboratorium",
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Text(
-                          "Kapasitas : $capacity",
-                          style: const TextStyle(fontSize: 9),
-                        ),
-                        const SizedBox(width: 2),
-                        const Icon(Icons.people, size: 10),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isNowBusy
-                    ? Colors.red.withOpacity(0.2)
-                    : Colors.green.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isNowBusy ? Colors.red : Colors.green,
-                ),
-              ),
-              child: Text(
-                isNowBusy ? "Not Available" : "Available",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: isNowBusy ? Colors.red[800] : Colors.green[800],
-                ),
-              ),
-            ),
-          ],
-        ),
+  return InkWell(
+    onTap: () => _showRoomDetails(roomNumber, capacity),
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black54, width: 1),
       ),
-    );
-  }
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            "Room $roomNumber",
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.computer_outlined, size: 30),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Laboratorium",
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        "Kapasitas : $capacity",
+                        style: const TextStyle(fontSize: 9),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(Icons.people, size: 10),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: isNowBusy
+                  ? Colors.red.withOpacity(0.2)
+                  : Colors.green.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isNowBusy ? Colors.red : Colors.green,
+              ),
+            ),
+            child: Text(
+              isNowBusy ? "Not Available" : "Available",
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isNowBusy ? Colors.red[800] : Colors.green[800],
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 
   void _showRoomDetails(String roomNumber, String capacity) {
     final roomName = "Ruangan Kelas $roomNumber";

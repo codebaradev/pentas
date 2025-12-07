@@ -274,7 +274,6 @@ class _HomePageState extends State<HomePage> {
                   'assets/lab_ith.jpg',
                   height: 140,
                   fit: BoxFit.cover,
-                  // Error handling sederhana jika gambar gagal dimuat
                   errorBuilder: (context, error, stackTrace) {
                     return Container(
                       height: 140,

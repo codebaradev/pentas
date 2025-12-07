@@ -391,119 +391,176 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      padding: const EdgeInsets.all(16), // Padding yang rapi
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.black54, width: 1),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.build, size: 36),
-          const SizedBox(width: 12),
-
-          // TEKS (nama + available) – fleksibel lebar
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+          // === BARIS 1: Ikon & Informasi Teks ===
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  "Available: $quantity / $totalQuantity",
-                  style: const TextStyle(fontSize: 14),
+                child: const Icon(Icons.build, size: 30),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 2, // Izinkan teks turun ke baris kedua jika panjang
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: quantity > 0
+                            ? Colors.green.withOpacity(0.2)
+                            : Colors.red.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        "Available: $quantity / $totalQuantity",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: quantity > 0 ? Colors.green[800] : Colors.red[800],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+          
+          const SizedBox(height: 12),
+          const Divider(height: 1, thickness: 1, color: Colors.black12),
+          const SizedBox(height: 8),
 
-          const SizedBox(width: 8),
-
-          // TOMBOL - + EDIT DELETE – di-fit supaya tidak “ngedorong” teks
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove),
-                  splashRadius: 20,
-                  onPressed: () async {
-                    try {
-                      final docRef = FirebaseFirestore.instance
-                          .collection('tools')
-                          .doc(tool.id);
-                      final snapshot = await docRef.get();
-                      if (!snapshot.exists) return;
-
-                      final data = snapshot.data() as Map<String, dynamic>;
-                      final currentQty = _safeInt(data['quantity']);
-
-                      if (currentQty > 0) {
-                        await docRef.update({
-                          'quantity': FieldValue.increment(-1),
-                        });
+          // === BARIS 2: Tombol Aksi ===
+          // Menggunakan Row di bawah teks agar tidak menghalangi
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Bagian Kiri: Stok Control (- / +)
+              Row(
+                children: [
+                  _buildActionButton(
+                    icon: Icons.remove,
+                    color: Colors.black87,
+                    onTap: () async {
+                      // Logika Kurangi Stok
+                      try {
+                        final docRef = FirebaseFirestore.instance
+                            .collection('tools')
+                            .doc(tool.id);
+                        final snapshot = await docRef.get();
+                        if (!snapshot.exists) return;
+                        final data = snapshot.data() as Map<String, dynamic>;
+                        final currentQty = _safeInt(data['quantity']);
+                        if (currentQty > 0) {
+                          await docRef.update(
+                              {'quantity': FieldValue.increment(-1)});
+                        }
+                      } catch (e) {
+                        debugPrint('Error decrement: $e');
                       }
-                    } catch (e, st) {
-                      debugPrint('Error decrement tool: $e');
-                      debugPrint(st.toString());
-                    }
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add),
-                  splashRadius: 20,
-                  onPressed: () async {
-                    try {
-                      final docRef = FirebaseFirestore.instance
-                          .collection('tools')
-                          .doc(tool.id);
-                      final snapshot = await docRef.get();
-                      if (!snapshot.exists) return;
-
-                      final data = snapshot.data() as Map<String, dynamic>;
-                      final currentQty = _safeInt(data['quantity']);
-                      final currentTotal =
-                          _safeInt(data['total_quantity'] ?? data['quantity']);
-
-                      if (currentQty < currentTotal) {
-                        await docRef.update({
-                          'quantity': FieldValue.increment(1),
-                        });
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _buildActionButton(
+                    icon: Icons.add,
+                    color: Colors.black87,
+                    onTap: () async {
+                      // Logika Tambah Stok
+                      try {
+                        final docRef = FirebaseFirestore.instance
+                            .collection('tools')
+                            .doc(tool.id);
+                        final snapshot = await docRef.get();
+                        if (!snapshot.exists) return;
+                        final data = snapshot.data() as Map<String, dynamic>;
+                        final currentQty = _safeInt(data['quantity']);
+                        final currentTotal = _safeInt(
+                            data['total_quantity'] ?? data['quantity']);
+                        if (currentQty < currentTotal) {
+                          await docRef.update(
+                              {'quantity': FieldValue.increment(1)});
+                        }
+                      } catch (e) {
+                        debugPrint('Error increment: $e');
                       }
-                    } catch (e, st) {
-                      debugPrint('Error increment tool: $e');
-                      debugPrint(st.toString());
-                    }
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit),
-                  splashRadius: 20,
-                  onPressed: () {
-                    _showEditToolDialog(tool.id, name, quantity, totalQuantity);
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  splashRadius: 20,
-                  onPressed: () {
-                    _showDeleteToolDialog(tool.id, name);
-                  },
-                ),
-              ],
-            ),
+                    },
+                  ),
+                ],
+              ),
+
+              // Bagian Kanan: Edit / Delete
+              Row(
+                children: [
+                  _buildActionButton(
+                    icon: Icons.edit,
+                    color: Colors.blue[700]!,
+                    onTap: () {
+                      _showEditToolDialog(
+                          tool.id, name, quantity, totalQuantity);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _buildActionButton(
+                    icon: Icons.delete,
+                    color: Colors.red[700]!,
+                    onTap: () {
+                      _showDeleteToolDialog(tool.id, name);
+                    },
+                  ),
+                ],
+              )
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  // Helper widget kecil untuk tombol agar kode lebih rapi
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            border: Border.all(color: color.withOpacity(0.3)),
+            borderRadius: BorderRadius.circular(8),
+            color: color.withOpacity(0.05),
+          ),
+          child: Icon(icon, size: 20, color: color),
+        ),
       ),
     );
   }

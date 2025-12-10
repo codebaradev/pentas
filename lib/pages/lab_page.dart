@@ -25,10 +25,10 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
   String _username = "Pengguna";
 
   Map<String, List<String>> _roomBusySessions = {
-    "Ruangan 201": [],
-    "Ruangan 202": [],
-    "Ruangan 203": [],
-    "Ruangan 204": [],
+    "Ruangan Kelas 201": [],
+    "Ruangan Kelas 202": [],
+    "Ruangan Kelas 203": [],
+    "Ruangan Kelas 204": [],
   };
 
   @override
@@ -46,76 +46,35 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     }
   }
 
-  DateTime _parseSessionEndTime(String session, DateTime scheduleDate) {
-    try {
-      if (session.contains(':') && session.contains('-')) {
-        final parts = session.split(':');
-        if (parts.length > 1) {
-          final timePart = parts[1].trim();
-          final timeRange = timePart.split('-');
-          if (timeRange.length == 2) {
-            final endTimeStr = timeRange[1].trim();
-            final endParts = endTimeStr.split('.');
-            if (endParts.length == 2) {
-              final endHour = int.parse(endParts[0]);
-              final endMinute = int.parse(endParts[1]);
-              return DateTime(
-                scheduleDate.year,
-                scheduleDate.month,
-                scheduleDate.day,
-                endHour,
-                endMinute,
-              );
-            }
-          }
-        }
-      }
-    } catch (e) {
-      // ignore: avoid_print
-      print("Error parsing session time: $e");
-    }
-    return scheduleDate.add(const Duration(hours: 2));
-  }
-
-  void _processSnapshot(List<QueryDocumentSnapshot> docs) {
+  void _processSnapshotForToday(List<QueryDocumentSnapshot> docs) {
     Map<String, List<String>> tempBusySessions = {
-      "Ruangan 201": [],
-      "Ruangan 202": [],
-      "Ruangan 203": [],
-      "Ruangan 204": [],
+      "Ruangan Kelas 201": [],
+      "Ruangan Kelas 202": [],
+      "Ruangan Kelas 203": [],
+      "Ruangan Kelas 204": [],
     };
-    final now = DateTime.now();
 
     for (var doc in docs) {
       Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-      if (data['status'] == 'accepted') {
-        String? roomName = data['room'];
-        String? sessionString = data['session'];
-        Timestamp? dateTimestamp = data['date'];
+      String? roomName = data['room'];
+      String? sessionString = data['session'];
 
-        if (roomName != null && sessionString != null && dateTimestamp != null) {
-          DateTime scheduleDate = dateTimestamp.toDate();
-          DateTime endTime = _parseSessionEndTime(sessionString, scheduleDate);
-
-          if (now.isBefore(endTime)) {
-            String sessionName = sessionString.split(':')[0].trim();
-            String formattedRoomName = "Ruangan ${roomName.split(' ').last}";
-
-            if (tempBusySessions.containsKey(formattedRoomName)) {
-              tempBusySessions[formattedRoomName]!.add(sessionName);
-            }
-          }
-        }
+      if (roomName != null &&
+          sessionString != null &&
+          tempBusySessions.containsKey(roomName)) {
+        String sessionName = sessionString.split(':')[0].trim();
+        tempBusySessions[roomName]!.add(sessionName);
       }
     }
 
-    if (mounted && _roomBusySessions.toString() != tempBusySessions.toString()) {
-      Future.microtask(() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          _roomBusySessions.toString() != tempBusySessions.toString()) {
         setState(() {
           _roomBusySessions = tempBusySessions;
         });
-      });
-    }
+      }
+    });
   }
 
   void _onItemTapped(int index) {
@@ -167,12 +126,25 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        automaticallyImplyLeading: false,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('requests').snapshots(),
+        stream: () {
+          final now = DateTime.now();
+          final startOfToday = DateTime(now.year, now.month, now.day);
+          final endOfToday = startOfToday.add(const Duration(days: 1));
+
+          return FirebaseFirestore.instance
+              .collection('requests')
+              .where('status', isEqualTo: 'accepted')
+              .where('date',
+                  isGreaterThanOrEqualTo: Timestamp.fromDate(startOfToday))
+              .where('date', isLessThan: Timestamp.fromDate(endOfToday))
+              .snapshots();
+        }(),
         builder: (context, snapshot) {
           if (snapshot.hasData) {
-            _processSnapshot(snapshot.data!.docs);
+            _processSnapshotForToday(snapshot.data!.docs);
           }
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -213,17 +185,18 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
       physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: 0.95,
       children: [
-        _buildRoomCard("201", "49"),
-        _buildRoomCard("202", "30"),
-        _buildRoomCard("203", "56"),
-        _buildRoomCard("204", "56"),
+        _buildRoomCard("Ruangan Kelas 201", "201", "49"),
+        _buildRoomCard("Ruangan Kelas 202", "202", "30"),
+        _buildRoomCard("Ruangan Kelas 203", "203", "56"),
+        _buildRoomCard("Ruangan Kelas 204", "204", "56"),
       ],
     );
   }
 
-  Widget _buildRoomCard(String roomNumber, String capacity) {
+  Widget _buildRoomCard(
+      String roomName, String roomNumber, String capacity) {
     return InkWell(
-      onTap: () => _showRoomDetails(roomNumber, capacity),
+      onTap: () => _showRoomDetails(roomName, roomNumber, capacity),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -278,8 +251,8 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
     );
   }
 
-  void _showRoomDetails(String roomNumber, String capacity) {
-    final roomName = "Ruangan $roomNumber";
+  void _showRoomDetails(
+      String roomName, String roomNumber, String capacity) {
     final busySessions = _roomBusySessions[roomName] ?? [];
     final allSessions = [
       "Sesi 1 (07.00 - 08.40)",
@@ -313,8 +286,7 @@ class _LaboratoriumPageState extends State<LaboratoriumPage> {
                   itemCount: allSessions.length,
                   itemBuilder: (context, index) {
                     final fullSessionName = allSessions[index];
-                    final shortSessionName =
-                        "${fullSessionName.split(' ')[0]} ${fullSessionName.split(' ')[1]}";
+                    final shortSessionName = fullSessionName.split('(')[0].trim();
                     final isBooked = busySessions.contains(shortSessionName);
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),

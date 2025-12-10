@@ -29,91 +29,29 @@ class _HomePageState extends State<HomePage> {
   final Color cardBackgroundColor = const Color(0xFFFFF0ED);
   final Color pageBackgroundColor = const Color(0xFFFAFAFA);
 
-  // Data real-time untuk card
-  int _availableRooms = 4;
-  StreamSubscription<QuerySnapshot>? _requestSubscription;
-
   @override
   void initState() {
     super.initState();
     _loadUserData();
-    _setupRequestFirestoreListener();
   }
 
   @override
   void dispose() {
-    _requestSubscription?.cancel();
     super.dispose();
   }
 
-  void _setupRequestFirestoreListener() {
-    _requestSubscription = FirebaseFirestore.instance
-        .collection('requests')
-        .where('status', isEqualTo: 'accepted')
-        .snapshots()
-        .listen((snapshot) {
-      _updateRoomStats(snapshot.docs);
-    });
-  }
+  String? _getCurrentSessionName() {
+    final now = TimeOfDay.now();
+    final double currentTime = now.hour + now.minute / 60.0;
 
-  void _updateRoomStats(List<QueryDocumentSnapshot> docs) {
-    final now = DateTime.now();
-    int busyRooms = 0;
-
-    for (var doc in docs) {
-      Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-
-      // Cek ruangan yang sibuk
-      Timestamp? dateTimestamp = data['date'];
-      String? sessionString = data['session'];
-
-      if (dateTimestamp != null && sessionString != null) {
-        DateTime scheduleDate = dateTimestamp.toDate();
-        DateTime endTime = _parseSessionEndTime(sessionString, scheduleDate);
-
-        if (now.isBefore(endTime)) {
-          String? roomName = data['room'];
-          if (roomName != null) {
-            busyRooms++;
-          }
-        }
-      }
-    }
-    if (mounted) {
-      setState(() {
-        _availableRooms = 4 - busyRooms.clamp(0, 4); // Total 4 ruangan
-      });
-    }
-  }
-
-  DateTime _parseSessionEndTime(String session, DateTime scheduleDate) {
-    try {
-      if (session.contains(':') && session.contains('-')) {
-        final parts = session.split(':');
-        if (parts.length > 1) {
-          final timePart = parts[1].trim();
-          final timeRange = timePart.split('-');
-          if (timeRange.length == 2) {
-            final endTimeStr = timeRange[1].trim();
-            final endParts = endTimeStr.split('.');
-            if (endParts.length == 2) {
-              final endHour = int.parse(endParts[0]);
-              final endMinute = int.parse(endParts[1]);
-              return DateTime(
-                scheduleDate.year,
-                scheduleDate.month,
-                scheduleDate.day,
-                endHour,
-                endMinute,
-              );
-            }
-          }
-        }
-      }
-    } catch (e) {
-      print("Error parsing session time: $e");
-    }
-    return scheduleDate.add(const Duration(hours: 2));
+    if (currentTime >= 7.0 && currentTime < 8.67) return "Sesi 1: 07.00-08.40"; // 08:40
+    if (currentTime >= 8.75 && currentTime < 10.42) return "Sesi 2: 08.45-10.25"; // 10:25
+    if (currentTime >= 10.5 && currentTime < 12.17) return "Sesi 3: 10.30-12.10"; // 12:10
+    if (currentTime >= 13.5 && currentTime < 15.17) return "Sesi 4: 13.30-15.10"; // 15:10
+    if (currentTime >= 15.25 && currentTime < 16.92) return "Sesi 5: 15.15-16.55"; // 16:55
+    if (currentTime >= 17.0 && currentTime < 18.67) return "Sesi 6: 17.00-18.40"; // 18:40
+    
+    return null; // Diluar jam sesi
   }
 
   Future<void> _loadUserData() async {
@@ -293,19 +231,14 @@ class _HomePageState extends State<HomePage> {
   Widget _buildMenuGrid() {
     return GridView.count(
       crossAxisCount: 2,
-      crossAxisSpacing: 12, // Sedikit lebih besar
-      mainAxisSpacing: 12, // Sedikit lebih besar
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.0, // Dinaikkan dari 0.95 ke 1.0 untuk lebih tinggi
+      childAspectRatio: 1.0,
       children: [
-        // Card Laboratorium dengan info real-time
         _buildLabCard(),
-
-        // Card Peralatan dengan info real-time
         _buildToolsCard(),
-
-        // Card Peraturan
         _buildGridItemSimple(
           icon: Icons.description_outlined,
           title: "Peraturan\nPeminjaman",
@@ -318,8 +251,6 @@ class _HomePageState extends State<HomePage> {
             );
           },
         ),
-
-        // Card Kontak
         _buildGridItemSimple(
           icon: Icons.phone_in_talk_outlined,
           title: "Kontak Petugas\ndan bantuan",
@@ -336,19 +267,49 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Card Laboratorium yang diperbarui
   Widget _buildLabCard() {
-    String statusText;
-    Color statusColor;
+    final String? currentSession = _getCurrentSessionName();
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
 
-    if (_availableRooms == 4) {
-      statusText = "Semua Tersedia";
+    if (currentSession == null) {
+      return _buildLabCardUI(4, "Diluar Sesi");
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('requests')
+          .where('status', isEqualTo: 'accepted')
+          .where('date', isEqualTo: Timestamp.fromDate(startOfToday))
+          .where('session', isEqualTo: currentSession)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildLabCardUI(4, "Memuat...");
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildLabCardUI(4, "Semua Tersedia");
+        }
+
+        final busyRooms =
+            snapshot.data!.docs.map((doc) => doc['room']).toSet();
+        final availableRooms = 4 - busyRooms.length;
+        final statusText = availableRooms == 0 ? "Penuh" : "$availableRooms/4 Tersedia";
+
+        return _buildLabCardUI(availableRooms, statusText);
+      },
+    );
+  }
+
+  Widget _buildLabCardUI(int availableRooms, String statusText) {
+    Color statusColor;
+    if (statusText == "Diluar Sesi" || statusText == "Memuat...") {
+      statusColor = Colors.grey;
+    } else if (availableRooms == 4) {
       statusColor = Colors.green;
-    } else if (_availableRooms == 0) {
-      statusText = "Penuh";
+    } else if (availableRooms == 0) {
       statusColor = Colors.red;
     } else {
-      statusText = "$_availableRooms/4 Tersedia";
       statusColor = Colors.orange;
     }
 
@@ -364,7 +325,7 @@ class _HomePageState extends State<HomePage> {
         },
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.all(12), // Sedikit dikurangi
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(20),
@@ -373,12 +334,12 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header dengan status
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.green[50],
                       borderRadius: BorderRadius.circular(8),
@@ -395,7 +356,8 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: statusColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(10),
@@ -413,14 +375,13 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
               const SizedBox(height: 8),
-
-              // Konten utama
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.computer_outlined, size: 28, color: Colors.black),
+                    const Icon(Icons.computer_outlined,
+                        size: 28, color: Colors.black),
                     const SizedBox(height: 8),
                     const Text(
                       "Laboratorium",
@@ -443,13 +404,11 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
-
-              // Footer dengan info dan progress bar
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "$_availableRooms dari 4 Ruang",
+                    "$availableRooms dari 4 Ruang",
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -458,9 +417,9 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 6),
                   SizedBox(
-                    height: 4, // Progress bar lebih tipis
+                    height: 4,
                     child: LinearProgressIndicator(
-                      value: _availableRooms / 4,
+                      value: availableRooms / 4,
                       backgroundColor: Colors.grey[300],
                       valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                       borderRadius: BorderRadius.circular(2),

@@ -59,6 +59,11 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     "Sesi 6: 17.00-18.40",
   ];
 
+  // --- START: Perbaikan Logika Pengecekan Sesi ---
+  Set<String> _bookedSessions = {};
+  bool _isCheckingSessions = false;
+  // --- END: Perbaikan Logika Pengecekan Sesi ---
+
   // Logika Fasilitas
   bool _isBorrowingFacilities = false;
   List<Map<String, dynamic>> _selectedFacilities = [
@@ -146,39 +151,6 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     }
   }
 
-  DateTime _parseSessionEndTime(String session, DateTime scheduleDate) {
-    try {
-      if (session.contains(':') && session.contains('-')) {
-        final parts = session.split(':');
-        if (parts.length > 1) {
-          final timePart = parts[1].trim();
-          final timeRange = timePart.split('-');
-          if (timeRange.length == 2) {
-            final endTimeStr = timeRange[1].trim();
-            final endParts = endTimeStr.split('.');
-
-            if (endParts.length == 2) {
-              final endHour = int.parse(endParts[0]);
-              final endMinute = int.parse(endParts[1]);
-
-              return DateTime(
-                scheduleDate.year,
-                scheduleDate.month,
-                scheduleDate.day,
-                endHour,
-                endMinute,
-              );
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint("Error parsing session time: $e");
-    }
-
-    return scheduleDate.add(const Duration(hours: 2));
-  }
-
   Future<void> _submitRequest() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -193,39 +165,30 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
       return;
     }
 
+    setState(() => _isLoading = true);
+
     // ---- CEK BENTROK RUANG & STOK ALAT (di sisi user) ----
     try {
-      final now = DateTime.now();
-
       final roomCheckSnapshot = await FirebaseFirestore.instance
           .collection('requests')
           .where('room', isEqualTo: _selectedRoom)
           .where('date', isEqualTo: Timestamp.fromDate(_selectedDate!))
+          .where('session', isEqualTo: _selectedSession)
           .where('status', isEqualTo: 'accepted')
+          .limit(1)
           .get();
 
-      for (var doc in roomCheckSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final existingSession = data['session'] as String?;
-        final existingDate = data['date'] as Timestamp?;
-
-        if (existingSession != null &&
-            existingSession == _selectedSession &&
-            existingDate != null) {
-          final scheduleDate = existingDate.toDate();
-          final endTime = _parseSessionEndTime(existingSession, scheduleDate);
-
-          if (now.isBefore(endTime)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    "Ruangan $_selectedRoom sudah dipesan pada $existingSession"),
-                backgroundColor: Colors.red,
-              ),
-            );
-            return;
-          }
+      if (roomCheckSnapshot.docs.isNotEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  "Ruangan $_selectedRoom untuk sesi ini sudah dipesan."),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
+        return;
       }
 
       if (_isBorrowingFacilities) {
@@ -235,26 +198,32 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
           final int availableQty = _toolDetails[toolName]?['quantity'] ?? 0;
 
           if (requestedQty > availableQty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                    "Stok $toolName tidak mencukupi. Tersedia: $availableQty"),
-                backgroundColor: Colors.red,
-              ),
-            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                      "Stok $toolName tidak mencukupi. Tersedia: $availableQty"),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
             return;
           }
         }
       }
     } catch (e) {
       debugPrint("Error checking availability: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Gagal memeriksa ketersediaan. Silakan coba lagi."),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Gagal memeriksa ketersediaan. Silakan coba lagi."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
       return;
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
 
     // ---- KIRIM REQUEST KE FIRESTORE ----
@@ -262,12 +231,10 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-
       List<Map<String, dynamic>> toolsData = [];
       if (_isBorrowingFacilities) {
         toolsData = _selectedFacilities;
       }
-
       await FirebaseFirestore.instance.collection('requests').add({
         'userId': user?.uid,
         'name': _name,
@@ -286,7 +253,6 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
       });
 
       if (!mounted) return;
-
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -363,6 +329,47 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     });
   }
 
+  Future<void> _updateAvailableSessions() async {
+    if (_selectedDate == null || _selectedRoom == null) {
+      if(mounted) setState(() => _bookedSessions.clear());
+      return;
+    }
+
+    if(mounted) setState(() => _isCheckingSessions = true);
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('requests')
+          .where('status', isEqualTo: 'accepted')
+          .where('room', isEqualTo: _selectedRoom)
+          .where('date', isEqualTo: Timestamp.fromDate(_selectedDate!))
+          .get();
+
+      final booked =
+          snapshot.docs.map((doc) => doc.data()['session'] as String).toSet();
+
+      if (mounted) {
+        setState(() {
+          _bookedSessions = booked;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error checking sessions: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Gagal memuat jadwal sesi."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCheckingSessions = false);
+      }
+    }
+  }
+
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -374,7 +381,9 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
+        _selectedSession = null;
       });
+      _updateAvailableSessions();
     }
   }
 
@@ -492,7 +501,13 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                             ),
                           )
                           .toList(),
-                      onChanged: (v) => setState(() => _selectedRoom = v),
+                      onChanged: (v) {
+                        setState(() {
+                          _selectedRoom = v;
+                          _selectedSession = null;
+                        });
+                        _updateAvailableSessions();
+                      },
                     ),
                     const SizedBox(height: 16),
                     _buildInputLabel("Tanggal Pinjam"),
@@ -519,19 +534,24 @@ class _FormPeminjamanPageState extends State<FormPeminjamanPage> {
                     const SizedBox(height: 4),
                     DropdownButtonFormField<String>(
                       value: _selectedSession,
-                      hint: const Text("Pilih Sesi"),
+                      hint: Text(_isCheckingSessions ? "Memeriksa..." : "Pilih Sesi"),
                       decoration: _inputDecoration(),
-                      items: _sessionList
-                          .map(
-                            (s) => DropdownMenuItem(
-                              value: s,
-                              child: Text(
-                                s,
-                                style: const TextStyle(fontSize: 14),
-                              ),
+                      items: _sessionList.map((s) {
+                        final isBooked = _bookedSessions.contains(s);
+                        return DropdownMenuItem(
+                          value: s,
+                          enabled: !isBooked,
+                          child: Text(
+                            isBooked ? "$s (Dipesan)" : s,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: isBooked ? Colors.grey : null,
+                              decoration:
+                                  isBooked ? TextDecoration.lineThrough : null,
                             ),
-                          )
-                          .toList(),
+                          ),
+                        );
+                      }).toList(),
                       onChanged: (v) => setState(() => _selectedSession = v),
                     ),
                     const SizedBox(height: 16),

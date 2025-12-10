@@ -181,11 +181,50 @@ class _PermintaanPageState extends State<PermintaanPage>
   }
 
   // Update Firebase
-    Future<void> _updateStatus(
+  Future<void> _updateStatus(
     String docId,
     String newStatus,
     Map<String, dynamic> requestData,
   ) async {
+    // --- START: CONFLICT CHECK ---
+    if (newStatus == 'accepted') {
+      try {
+        final conflictingRequest = await FirebaseFirestore.instance
+            .collection('requests')
+            .where('status', isEqualTo: 'accepted')
+            .where('room', isEqualTo: requestData['room'])
+            .where('date', isEqualTo: requestData['date'])
+            .where('session', isEqualTo: requestData['session'])
+            .limit(1)
+            .get();
+
+        if (conflictingRequest.docs.isNotEmpty) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                  "Jadwal ini sudah terisi oleh peminjam lain!"),
+              backgroundColor: errorColor,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return; // Stop execution if conflict found
+        }
+      } catch (e) {
+        debugPrint("Error checking for conflicts: $e");
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                const Text("Terjadi kesalahan saat memeriksa jadwal bentrok."),
+            backgroundColor: errorColor,
+          ),
+        );
+        return;
+      }
+    }
+    // --- END: CONFLICT CHECK ---
+    
     final String message = newStatus == 'accepted'
         ? "Peminjaman Ruangan di Setujui !"
         : "Peminjaman Ruangan di Tolak !";

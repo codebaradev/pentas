@@ -46,7 +46,7 @@ class _SignupPageState extends State<SignupPage> {
               _buildInputField(usernameController, "Nama Lengkap"),
               const SizedBox(height: 16),
 
-              _buildInputField(nimController, "NIM/NIP"),
+              _buildInputField(nimController, "NIM"),
               const SizedBox(height: 16),
 
               _buildInputField(

@@ -168,7 +168,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     return 0;
   }
 
-  void _processSnapshot(List<QueryDocumentSnapshot> docs) {
+  void _processSnapshotForToday(List<QueryDocumentSnapshot> docs) {
     Map<String, List<String>> tempBusySessions = {
       "Ruangan Kelas 201": [],
       "Ruangan Kelas 202": [],
@@ -176,35 +176,22 @@ class _AdminHomePageState extends State<AdminHomePage> {
       "Ruangan Kelas 204": [],
     };
 
-    final now = DateTime.now();
-
     for (var doc in docs) {
       Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-      final status = data['status'];
+      String? roomName = data['room'];
+      String? sessionString = data['session'];
 
-      if (status == 'accepted') {
-        String? roomName = data['room'];
-        String? sessionString = data['session'];
-        Timestamp? dateTimestamp = data['date'];
-
-        if (roomName != null &&
-            sessionString != null &&
-            dateTimestamp != null) {
-          DateTime scheduleDate = dateTimestamp.toDate();
-          DateTime endTime = _parseSessionEndTime(sessionString, scheduleDate);
-
-          if (now.isBefore(endTime)) {
-            String sessionName = sessionString.split(':')[0].trim();
-
-            if (tempBusySessions.containsKey(roomName)) {
-              tempBusySessions[roomName]!.add(sessionName);
-            }
-          }
-        }
+      if (roomName != null &&
+          sessionString != null &&
+          tempBusySessions.containsKey(roomName)) {
+        // Query already ensures it's for today and accepted.
+        String sessionName = sessionString.split(':')[0].trim();
+        tempBusySessions[roomName]!.add(sessionName);
       }
     }
 
-    Future.microtask(() {
+    // Use a post-frame callback to avoid calling setState during a build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         setState(() {
           _roomBusySessions = tempBusySessions;
@@ -231,7 +218,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
             padding: const EdgeInsets.only(right: 16.0),
             child: Center(
               child: Text(
-                _adminName != null ? "Hi $_adminName" : "Loading...",
+                _adminName != null ? "Hi, $_adminName" : "Loading...",
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -244,10 +231,21 @@ class _AdminHomePageState extends State<AdminHomePage> {
       ),
       drawer: _buildSidebar(),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('requests').snapshots(),
+        stream: () {
+          final now = DateTime.now();
+          final startOfToday = DateTime(now.year, now.month, now.day);
+          final endOfToday = startOfToday.add(const Duration(days: 1));
+
+          return FirebaseFirestore.instance
+              .collection('requests')
+              .where('status', isEqualTo: 'accepted')
+              .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfToday))
+              .where('date', isLessThan: Timestamp.fromDate(endOfToday))
+              .snapshots();
+        }(),
         builder: (context, snapshot) {
           if (snapshot.hasData) {
-            _processSnapshot(snapshot.data!.docs);
+            _processSnapshotForToday(snapshot.data!.docs);
           }
 
           return SingleChildScrollView(
